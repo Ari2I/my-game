@@ -44,8 +44,8 @@ class Player():
         self.image = self.animations[self.state][self.facing][self.frame_index]
         self.rect = self.image.get_rect(center=(x, y))
 
-        self.horizontal_speed = 3.75
-        self.vertical_speed = 3
+        self.horizontal_speed = 0.75
+        self.vertical_speed = 1
 
 
 
