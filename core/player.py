@@ -44,7 +44,8 @@ class Player():
         self.image = self.animations[self.state][self.facing][self.frame_index]
         self.rect = self.image.get_rect(center=(x, y))
 
-        self.speed = 4
+        self.horizontal_speed = 3.75
+        self.vertical_speed = 3
 
 
 
@@ -78,20 +79,20 @@ class Player():
             moving = True
         else:
             if keys[pygame.K_w]:
-                self.rect.y -= self.speed
+                self.rect.y -= self.vertical_speed
                 self.facing = "up"
                 moving = True
             elif keys[pygame.K_s]:
-                self.rect.y += self.speed
+                self.rect.y += self.vertical_speed
                 self.facing = "down"
                 moving = True
 
             if keys[pygame.K_a]:
-                self.rect.x -= self.speed
+                self.rect.x -= self.horizontal_speed
                 self.facing = "left"
                 moving = True
             elif keys[pygame.K_d]:
-                self.rect.x += self.speed
+                self.rect.x += self.horizontal_speed
                 self.facing = "right"
                 moving = True
 
