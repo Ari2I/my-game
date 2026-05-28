@@ -1,81 +1,55 @@
-# import pygame
-# import sys
-# from core.player import Player
-# from core.map import Map
-#
-#
-# def run():
-#     pygame.init()
-#     screen_width = 1200
-#     screen_height = 900
-#     screen = pygame.display.set_mode((screen_width, screen_height))
-#
-#     # Создаём карту с островом
-#     game_map = Map(screen_width, screen_height, tile_size=64)
-#
-#     # Создаём игрока в центре острова
-#     center_x = (game_map.map_width // 2) * 64
-#     center_y = (game_map.map_height // 2) * 64
-#     player = Player(center_x, center_y)
-#
-#     clock = pygame.time.Clock()
-#     pygame.display.set_caption('Island Level')
-#
-#
-#     while True:
-#         clock.tick(60)
-#         for users_event in pygame.event.get():
-#             if users_event.type == pygame.QUIT:
-#                 sys.exit()
-#         keys = pygame.key.get_pressed()
-#         player.update_player(keys)
-#
-#         # Камера следует за игроком
-#         camera_x = player.rect.centerx - screen_width // 2
-#         camera_y = player.rect.centery - screen_height // 2
-#
-#         # Отрисовка
-#         screen.fill((0, 49, 83))  # Цвет воды для фона
-#
-#         # Рисуем карту
-#         game_map.draw(screen, camera_x, camera_y)
-#
-#         # Рисуем точки спавна для отладки (можно убрать в продакшене)
-#         game_map.draw_spawn_points(screen, camera_x, camera_y)
-#
-#         # Рисуем игрока
-#         player.draw(screen)
-#
-#         pygame.display.flip()
-#
-#
-# run()
-
 import pygame
 from core.map import TileMap
+from core.player import Player
 
 pygame.init()
 
-WIDTH = 960
-HEIGHT = 960
+WIDTH = 1920
+HEIGHT = 1080
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 
 game_map = TileMap("images/maps/mapV1.tmx")
 
+# Получаем размеры карты в пикселях (с учётом масштаба тайлов)
+map_width_px = game_map.tmx_data.width * game_map.tile_width
+map_height_px = game_map.tmx_data.height * game_map.tile_height
+
+# Создаём игрока в центре карты
+center_x = map_width_px // 2
+center_y = map_height_px // 2
+player = Player(center_x, center_y)
+
 running = True
 
 while running:
+    clock.tick(120)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
+    # Обновляем игрока
+    keys = pygame.key.get_pressed()
+    player.update_player(keys)
+
+    # Камера следует за игроком (центрируем на игроке)
+    camera_x = player.rect.centerx - WIDTH // 2
+    camera_y = player.rect.centery - HEIGHT // 2
+
+    # Ограничиваем камеру границами карты
+    camera_x = max(0, min(camera_x, map_width_px - WIDTH))
+    camera_y = max(0, min(camera_y, map_height_px - HEIGHT))
+
     screen.fill((39, 42, 57))
 
-    game_map.draw(screen)
+    # Рисуем карту с учётом камеры
+    game_map.draw(screen, camera_x, camera_y)
+
+    # Рисуем игрока с учётом камеры
+    player.draw(screen, camera_x, camera_y)
 
     pygame.display.flip()
 
-    clock.tick(60)
+pygame.quit()
