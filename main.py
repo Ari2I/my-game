@@ -19,7 +19,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from core.map    import TileMap
+from core.map    import TileMap, get_content_bounds
 from core.player import Player
 from core.hud    import HUD
 from core.menu   import MainMenu
@@ -82,6 +82,12 @@ def run_game(save_path=None):
     map_w_px = game_map.tmx_data.width  * game_map.tile_width
     map_h_px = game_map.tmx_data.height * game_map.tile_height
 
+    # ── реальные границы отрисованного контента карты ──────────────────────────
+    # (нужны для корректного спавна слаймов — номинальный tmx-грид может
+    # содержать пустые края)
+    content_x0, content_y0, content_x1, content_y1 = get_content_bounds(
+        game_map.tmx_data, game_map.tile_width, game_map.tile_height)
+
     # ── стены ─────────────────────────────────────────────────────────────────
     wall_map = WallMap(game_map.tmx_data, game_map.tile_width, game_map.tile_height)
 
@@ -98,6 +104,7 @@ def run_game(save_path=None):
 
     hud    = HUD(WIDTH, HEIGHT)
     slimes = SlimeManager(map_w_px, map_h_px)
+    slimes.set_spawn_area(content_x0, content_y0, content_x1, content_y1)
     slimes.spawn_wave(wave=1, count=5)
 
     # ── DEBUG данные ──────────────────────────────────────────────────────────

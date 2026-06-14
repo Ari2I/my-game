@@ -18,6 +18,12 @@ ATTACK_CONE_RADIUS = 110    # дальность удара в пикселях
 ATTACK_COOLDOWN    = 0.55   # сек между ударами игрока
 IFRAME_DURATION    = 0.65   # сек неуязвимости после получения урона (i-frames)
 
+# ─── Коллизионный хитбокс игрока ───────────────────────────────────────────────
+# Размер НЕ зависит от размера кадров анимации (idle/walk — 64x64, attack — 192x192).
+# Должен быть меньше тайла стены (64x64), чтобы персонаж не цеплялся за края.
+PLAYER_HITBOX_W = 36
+PLAYER_HITBOX_H = 50
+
 # Углы направлений (в градусах, от оси X вправо)
 FACING_ANGLES = {
     "right": 0.0,
@@ -114,7 +120,10 @@ class Player:
         self.is_attacking = False
 
         self.image = self.animations["idle"]["down"][0]
-        self.rect  = self.image.get_rect(center=(x, y))
+
+        # ── хитбокс игрока (фиксированный размер, не зависит от кадра анимации)
+        self.rect = pygame.Rect(0, 0, PLAYER_HITBOX_W, PLAYER_HITBOX_H)
+        self.rect.center = (x, y)
 
         self.stats     = Stats()
         self.inventory = Inventory()
@@ -285,12 +294,15 @@ class Player:
                 self.is_attacking = False
                 self._hit_dealt   = False
                 self.state = "idle"
-        old = self.rect.center
+        # ВАЖНО: self.rect — это коллизионный хитбокс фиксированного размера,
+        # его размер/позиция НЕ пересчитываются по размеру кадра анимации.
         self.image = frames[int(self.frame_index)]
-        self.rect  = self.image.get_rect(center=old)
 
     def draw(self, screen, camera_x=0, camera_y=0):
-        screen.blit(self.image, (self.rect.x - camera_x, self.rect.y - camera_y))
+        # картинка может быть крупнее хитбокса (например, кадры атаки 192x192) —
+        # центрируем её относительно хитбокса для отрисовки
+        img_rect = self.image.get_rect(center=self.rect.center)
+        screen.blit(self.image, (img_rect.x - camera_x, img_rect.y - camera_y))
 
     # ── отладочная отрисовка конуса ───────────────────────────────────────────
     def draw_attack_cone(self, screen, camera_x=0, camera_y=0):

@@ -364,8 +364,23 @@ class SlimeManager:
     def __init__(self, map_w: int, map_h: int):
         self.map_w = map_w
         self.map_h = map_h
+
+        # Зона спавна по умолчанию — вся карта.
+        # Используйте set_spawn_area(), если реальная отрисованная область
+        # карты меньше номинального размера tmx (иначе слаймы могут
+        # спавниться на пустых краях карты).
+        self.spawn_x0: float = 0.0
+        self.spawn_y0: float = 0.0
+        self.spawn_x1: float = float(map_w)
+        self.spawn_y1: float = float(map_h)
+
         self.slimes: list[Slime] = []
         self._to_die: list[Slime] = []
+
+    def set_spawn_area(self, x0: float, y0: float, x1: float, y1: float):
+        """Задаёт прямоугольную зону, по краям которой будут спавниться слаймы."""
+        self.spawn_x0, self.spawn_y0 = x0, y0
+        self.spawn_x1, self.spawn_y1 = x1, y1
 
     def spawn_wave(self, wave: int = 1, count: int = 5):
         for _ in range(count):
@@ -378,11 +393,25 @@ class SlimeManager:
 
     def _edge_pos(self):
         m = self.EDGE_MARGIN
+
+        x0 = self.spawn_x0 + m
+        y0 = self.spawn_y0 + m
+        x1 = self.spawn_x1 - m
+        y1 = self.spawn_y1 - m
+
+        # если зона спавна слишком маленькая для отступа — используем её без отступа
+        if x1 <= x0:
+            x0, x1 = self.spawn_x0, self.spawn_x1
+        if y1 <= y0:
+            y0, y1 = self.spawn_y0, self.spawn_y1
+
+        x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
+
         s = random.randint(0, 3)
-        if   s == 0: return random.randint(m, self.map_w - m), m
-        elif s == 1: return random.randint(m, self.map_w - m), self.map_h - m
-        elif s == 2: return m,              random.randint(m, self.map_h - m)
-        else:        return self.map_w - m, random.randint(m, self.map_h - m)
+        if   s == 0: return random.randint(x0, x1), y0
+        elif s == 1: return random.randint(x0, x1), y1
+        elif s == 2: return x0, random.randint(y0, y1)
+        else:        return x1, random.randint(y0, y1)
 
     def update(self, player, dt: float):
         alive = []
