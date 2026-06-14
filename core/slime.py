@@ -375,6 +375,7 @@ class SlimeManager:
     def spawn_one(self, wave: int = 1):
         x, y = self._edge_pos()
         self.slimes.append(Slime(x, y, wave=wave))
+
     def _edge_pos(self):
         m = self.EDGE_MARGIN
         s = random.randint(0, 3)
