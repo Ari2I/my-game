@@ -86,7 +86,7 @@ def run_game(save_path=None):
     wall_map = WallMap(game_map.tmx_data, game_map.tile_width, game_map.tile_height)
 
     # ── игрок ─────────────────────────────────────────────────────────────────
-    player = Player(map_w_px // 2, map_h_px // 2)
+    player = Player(map_w_px // 3, map_h_px // 3)
 
     if save_path:
         import json
