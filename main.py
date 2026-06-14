@@ -59,16 +59,18 @@ class CachedTileMap(TileMap):
         return self._cache[gid]
 
     def draw(self, screen, camera_x=0, camera_y=0):
+        import pytmx
         sw, sh = screen.get_size()
-        for layer in self._iter_tile_layers(self.tmx_data.visible_layers):
-            for x, y, gid in layer:
-                tx = x * self.tile_width  - camera_x
-                ty = y * self.tile_height - camera_y
-                if tx > sw or ty > sh or tx < -self.tile_width or ty < -self.tile_height:
-                    continue
-                scaled = self._get_scaled(gid)
-                if scaled:
-                    screen.blit(scaled, (tx, ty))
+        for layer in self.tmx_data.visible_layers:
+            if isinstance(layer, pytmx.TiledTileLayer):
+                for x, y, gid in layer:
+                    tx = x * self.tile_width  - camera_x
+                    ty = y * self.tile_height - camera_y
+                    if tx > sw or ty > sh or tx < -self.tile_width or ty < -self.tile_height:
+                        continue
+                    scaled = self._get_scaled(gid)
+                    if scaled:
+                        screen.blit(scaled, (tx, ty))
 
 
 # ── игровой цикл ──────────────────────────────────────────────────────────────
@@ -81,8 +83,7 @@ def run_game(save_path=None):
     map_h_px = game_map.tmx_data.height * game_map.tile_height
 
     # ── стены ─────────────────────────────────────────────────────────────────
-    wall_map = WallMap(game_map.tmx_data, game_map.tile_width, game_map.tile_height,
-                       filename=game_map.filename)
+    wall_map = WallMap(game_map.tmx_data, game_map.tile_width, game_map.tile_height)
 
     # ── игрок ─────────────────────────────────────────────────────────────────
     player = Player(map_w_px // 2, map_h_px // 2)
