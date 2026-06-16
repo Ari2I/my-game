@@ -9,8 +9,7 @@ core/slime.py — враг «Слайм» v2.
   • Задержка урона: ATTACK_COOLDOWN + i-frames на игроке.
   • Разделение между слаймами (anti-clustering).
 
-Отрисовка вынесена в core/render/slime_renderer.py (PlayerRenderer/SlimeRenderer
-не хранятся здесь — этот модуль не знает о pygame.draw/screen.blit).
+Отрисовка вынесена в core/render/slime_renderer.py.
 """
 
 import pygame
@@ -39,8 +38,6 @@ SEPARATION_FORCE  = 2.5
 
 SLIME_RADIUS = 20
 
-# Орбитальный «предпочтительный» угол — у каждого слайма свой,
-# чтобы они окружали игрока с разных сторон
 ORBIT_SPREAD = 55.0   # °, насколько слайм отклоняется от прямой к цели
 
 
@@ -74,7 +71,7 @@ class Slime:
         # AI
         self.state: str     = State.WANDER
         self._state_timer   = 0.0
-        self._attack_cd     = random.uniform(0, ATTACK_COOLDOWN)  # разброс старта
+        self._attack_cd     = random.uniform(0, ATTACK_COOLDOWN)
 
         # WANDER
         angle = random.uniform(0, math.pi * 2)
@@ -82,15 +79,13 @@ class Slime:
         self._wander_dy     = math.sin(angle)
         self._wander_timer  = random.uniform(0.8, 2.5)
 
-        # LUNGE — запомненная цель
+        # LUNGE
         self._lunge_tx: float = 0.0
         self._lunge_ty: float = 0.0
 
-        # Орбитальный угол-смещение — у каждого слайма свой, фиксированный
-        # Это заставляет их подходить с разных сторон
         self._orbit_offset = random.uniform(-ORBIT_SPREAD, ORBIT_SPREAD)
 
-        # Визуал (читается рендерером через свойства ниже)
+        # Визуал
         self._hit_flash     = 0.0
         self._bounce_phase  = random.uniform(0, math.pi * 2)
         self._squash        = 1.0
@@ -106,8 +101,6 @@ class Slime:
         self._state_timer = 0.0
 
     # ── свойства для рендерера ──────────────────────────────────────────────
-    # Публичный read-only доступ к визуальным полям, которые нужны
-    # core.render.slime_renderer.SlimeRenderer для отрисовки.
     @property
     def hit_flash(self) -> float:
         return self._hit_flash
@@ -135,8 +128,11 @@ class Slime:
         self._hit_flash    = max(0.0, self._hit_flash - dt_sec)
         self._attack_cd    = max(0.0, self._attack_cd - dt_sec)
 
-        pdx = player.rect.centerx - self.x
-        pdy = player.rect.centery - self.y
+        # Используем hitbox игрока для AI — стабильные координаты
+        player_cx = player.hitbox.centerx
+        player_cy = player.hitbox.centery
+        pdx = player_cx - self.x
+        pdy = player_cy - self.y
         dist = math.hypot(pdx, pdy)
 
         if   self.state == State.STUNNED:  self._do_stunned(dt_sec)
@@ -196,10 +192,7 @@ class Slime:
             return
 
         if dist > 0:
-            # Базовый угол к игроку
             base_angle = math.atan2(pdy, pdx)
-            # Добавляем индивидуальное орбитальное смещение
-            # Это рассеивает слаймов по окружности вокруг игрока
             offset_rad = math.radians(self._orbit_offset)
             final_angle = base_angle + offset_rad * max(0, (PREPARE_RANGE * 2 - dist) / (PREPARE_RANGE * 2))
 
@@ -243,7 +236,6 @@ class Slime:
                 self._enter(State.RECOIL)
 
     def _do_attack(self, dt_sec, pdx, pdy, dist, player):
-        # Плавное торможение у игрока
         self.vx *= 0.82
         self.vy *= 0.82
 
@@ -252,16 +244,14 @@ class Slime:
             return
 
         if self._attack_cd <= 0:
-            player.take_damage(self.damage)   # i-frames на игроке фильтруют спам
+            player.take_damage(self.damage)
             self._attack_cd = ATTACK_COOLDOWN
-            # небольшой отскок после удара
             if dist > 0:
                 nx, ny = pdx / dist, pdy / dist
                 self.vx = -nx * 2.0
                 self.vy = -ny * 2.0
 
     def _do_recoil(self, dt, dt_sec, dist):
-        # отскакиваем в случайном направлении назад
         if self._state_timer < 0.02:
             a = math.atan2(self.vy, self.vx) + math.pi + random.uniform(-0.5, 0.5)
             self.vx = math.cos(a) * RECOIL_SPEED
@@ -309,7 +299,11 @@ class Slime:
 
 # ─── Менеджер ─────────────────────────────────────────────────────────────────
 class SlimeManager:
-    EDGE_MARGIN = 80
+    # Отступ от края карты при спавне.
+    # Должен быть достаточно большим чтобы слизни не появлялись за пределами
+    # видимого контента карты. tile_scale=4, tile_size=16*4=64.
+    # Одна клетка = 64px, берём 3 клетки = 192px.
+    EDGE_MARGIN = 192
 
     def __init__(self, map_w: int, map_h: int):
         self.map_w = map_w
@@ -327,7 +321,12 @@ class SlimeManager:
         self.slimes.append(Slime(x, y, wave=wave))
 
     def _edge_pos(self):
+        """Спавним на краях карты, с отступом EDGE_MARGIN от границы."""
         m = self.EDGE_MARGIN
+        # Убеждаемся что карта достаточно большая
+        if self.map_w <= m * 2 or self.map_h <= m * 2:
+            return self.map_w // 2, self.map_h // 2
+
         s = random.randint(0, 3)
         if   s == 0: return random.randint(m, self.map_w - m), m
         elif s == 1: return random.randint(m, self.map_w - m), self.map_h - m
@@ -345,7 +344,6 @@ class SlimeManager:
         self.slimes = alive
 
     def apply_damage_to_slimes(self, player):
-        """Урон по конусу атаки игрока."""
         dmg = player.stats.damage()
         for s in self.slimes:
             if player.point_in_attack_cone(s.x, s.y):

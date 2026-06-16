@@ -4,7 +4,7 @@ main.py — точка входа.
 Горячие клавиши в игре:
   ESC   — главное меню
   F3    — счётчик FPS
-  F4    — отладка: показать коллизионные стены (красные рамки)
+  F4    — отладка: показать коллизионные стены + хитбокс игрока
   F5    — отладка: показать конус атаки игрока
   H     — (DEBUG) -10 HP
   X     — (DEBUG) +50 XP, +1 слизь
@@ -20,7 +20,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from core.map    import TileMap
-from core.player import Player
+from core.player import Player, HITBOX_OFFSET_Y
 from core.hud    import HUD
 from core.menu   import MainMenu
 from core.slime  import SlimeManager
@@ -38,8 +38,8 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Cursed Land")
 clock = pygame.time.Clock()
 
-font_fps  = pygame.font.SysFont(None, 26)
-font_dbg  = pygame.font.SysFont(None, 22)
+font_fps = pygame.font.SysFont(None, 26)
+font_dbg = pygame.font.SysFont(None, 22)
 
 show_fps   = False
 show_walls = False
@@ -80,15 +80,12 @@ class CachedTileMap(TileMap):
 def run_game(save_path=None):
     global show_fps, show_walls, show_cone
 
-    # ── загрузка карты ────────────────────────────────────────────────────────
     game_map = CachedTileMap("images/maps/mapV1.tmx")
     map_w_px = game_map.tmx_data.width  * game_map.tile_width
     map_h_px = game_map.tmx_data.height * game_map.tile_height
 
-    # ── стены ─────────────────────────────────────────────────────────────────
     wall_map = WallMap(game_map.tmx_data, game_map.tile_width, game_map.tile_height)
 
-    # ── игрок ─────────────────────────────────────────────────────────────────
     player = Player(map_w_px // 3, map_h_px // 3)
 
     if save_path:
@@ -103,11 +100,9 @@ def run_game(save_path=None):
     slimes = SlimeManager(map_w_px, map_h_px)
     slimes.spawn_wave(wave=1, count=5)
 
-    # ── рендереры (View) ─────────────────────────────────────────────────────
     player_renderer = PlayerRenderer(player)
     slime_renderer  = SlimeManagerRenderer()
 
-    # ── DEBUG данные ──────────────────────────────────────────────────────────
     player.inventory.slime_goo = 5
     player.gain_xp(80)
 
@@ -126,7 +121,6 @@ def run_game(save_path=None):
                 if event.key == pygame.K_F3:      show_fps   = not show_fps
                 if event.key == pygame.K_F4:      show_walls = not show_walls
                 if event.key == pygame.K_F5:      show_cone  = not show_cone
-                # DEBUG
                 if event.key == pygame.K_h:       player.take_damage(10)
                 if event.key == pygame.K_x:
                     player.gain_xp(50)
@@ -141,24 +135,27 @@ def run_game(save_path=None):
         keys = pygame.key.get_pressed()
         player.update_player(keys, dt)
 
-        # Разрешение коллизий со стенами
-        wall_map.resolve_player(player.rect)
+        # Коллизия стен работает с hitbox.
+        # После resolve вычитаем HITBOX_OFFSET_Y чтобы вернуть world_y.
+        wall_map.resolve_player(player.hitbox)
+        player.world_x = float(player.hitbox.centerx)
+        player.world_y = float(player.hitbox.centery) - HITBOX_OFFSET_Y
+        # Синхронизируем rect после коррекции
+        player.rect.center = (int(player.world_x), int(player.world_y))
 
-        # Атака — наносим урон слаймам в конусе в активной фазе анимации
         player.try_deal_attack(slimes)
 
         # ── обновление слаймов ────────────────────────────────────────────────
         slimes.update(player, dt)
 
-        # Разрешаем коллизии слаймов со стенами
         for slime in slimes.slimes:
             wall_map.resolve_entity(slime.rect)
             slime.x = float(slime.rect.centerx)
             slime.y = float(slime.rect.centery)
 
-        # ── камера ────────────────────────────────────────────────────────────
-        camera_x = max(0, min(player.rect.centerx - WIDTH  // 2, map_w_px - WIDTH))
-        camera_y = max(0, min(player.rect.centery - HEIGHT // 2, map_h_px - HEIGHT))
+        # ── камера центрируется по hitbox (реальные ноги персонажа) ──────────
+        camera_x = max(0, min(player.hitbox.centerx - WIDTH  // 2, map_w_px - WIDTH))
+        camera_y = max(0, min(player.hitbox.centery - HEIGHT // 2, map_h_px - HEIGHT))
 
         # ── отрисовка ─────────────────────────────────────────────────────────
         screen.fill((39, 42, 57))
@@ -173,19 +170,27 @@ def run_game(save_path=None):
             player_renderer.draw_attack_cone(screen, camera_x, camera_y)
 
         player_renderer.draw(screen, camera_x, camera_y)
-
-        # i-frame мигание игрока
         player_renderer.draw_iframe_flash(screen, camera_x, camera_y)
+
+        # Отладка: зелёный хитбокс, белый крест в world_x/y
+        if show_walls:
+            hb = player.hitbox.move(-camera_x, -camera_y)
+            pygame.draw.rect(screen, (0, 255, 0), hb, 2)
+            wx = int(player.world_x) - camera_x
+            wy = int(player.world_y) - camera_y
+            pygame.draw.line(screen, (255, 255, 255), (wx - 6, wy), (wx + 6, wy), 1)
+            pygame.draw.line(screen, (255, 255, 255), (wx, wy - 6), (wx, wy + 6), 1)
 
         hud.draw(screen, player)
 
         if show_fps:
-            fps_s = font_fps.render(f"FPS: {clock.get_fps():.0f}  |  "
-                                    f"Слаймов: {slimes.count}", True, (255, 220, 60))
+            fps_s = font_fps.render(
+                f"FPS: {clock.get_fps():.0f}  |  Слаймов: {slimes.count}",
+                True, (255, 220, 60))
             screen.blit(fps_s, (10, 10))
 
         if show_walls or show_cone:
-            hint = font_dbg.render("F4=стены  F5=конус", True, (150, 150, 150))
+            hint = font_dbg.render("F4=стены+хитбокс  F5=конус", True, (150, 150, 150))
             screen.blit(hint, (10, 36))
 
         pygame.display.flip()

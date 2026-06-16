@@ -13,12 +13,18 @@ SPEED_PER_POINT  = 0.4
 DAMAGE_PER_POINT = 8
 
 # ─── Параметры атаки ──────────────────────────────────────────────────────────
-ATTACK_CONE_ANGLE  = 80.0   # полуугол конуса в градусах (итого 160°)
-ATTACK_CONE_RADIUS = 110    # дальность удара в пикселях
-ATTACK_COOLDOWN    = 0.55   # сек между ударами игрока
-IFRAME_DURATION    = 0.65   # сек неуязвимости после получения урона (i-frames)
+ATTACK_CONE_ANGLE  = 80.0
+ATTACK_CONE_RADIUS = 110
+ATTACK_COOLDOWN    = 0.55
+IFRAME_DURATION    = 0.65
 
-# Углы направлений (в градусах, от оси X вправо)
+# ─── Хитбокс ──────────────────────────────────────────────────────────────────
+HITBOX_W        = 28
+HITBOX_H        = 28
+# Смещение хитбокса вниз от world_x/y (центра спрайта).
+# Меняй только это число — хитбокс сдвинется к ногам.
+HITBOX_OFFSET_Y = 30
+
 FACING_ANGLES = {
     "right": 0.0,
     "down":  90.0,
@@ -113,8 +119,19 @@ class Player:
         self.frame_index  = 0.0
         self.is_attacking = False
 
+        # ── Мировые координаты (центр спрайта) ───────────────────────────────
+        # Единственный источник истины о позиции персонажа.
+        # Движение и коллизии работают только через эти два числа.
+        self.world_x = float(x)
+        self.world_y = float(y)
+
+        # ── Визуальный rect (меняет размер со спрайтом, только для отрисовки) ─
         self.image = self.animations["idle"]["down"][0]
         self.rect  = self.image.get_rect(center=(x, y))
+
+        # ── Хитбокс (фиксированный размер, для коллизий со стенами и врагами) ─
+        self.hitbox = pygame.Rect(0, 0, HITBOX_W, HITBOX_H)
+        self._sync_rects()
 
         self.stats     = Stats()
         self.inventory = Inventory()
@@ -122,12 +139,17 @@ class Player:
         self.xp    = 0
 
         self._current_hp: float = float(self.stats.max_hp())
+        self._attack_cd:  float = 0.0
+        self._iframe_cd:  float = 0.0
+        self._hit_dealt:  bool  = False
 
-        # ── кулдаун атаки и i-frames ──────────────────────────────────────────
-        self._attack_cd:   float = 0.0   # сек до следующей атаки
-        self._iframe_cd:   float = 0.0   # сек неуязвимости
-        # флаг: удар уже нанесён в текущей анимации атаки
-        self._hit_dealt: bool = False
+    # ── синхронизация rect и hitbox из world_x/y ─────────────────────────────
+    def _sync_rects(self):
+        """Пересчитывает hitbox и rect из world_x/world_y.
+        Вызывается после любого изменения позиции."""
+        self.hitbox.center = (int(self.world_x),
+                              int(self.world_y) + HITBOX_OFFSET_Y)
+        self.rect.center   = (int(self.world_x), int(self.world_y))
 
     # ── загрузка кадров ───────────────────────────────────────────────────────
     def _load(self, y, fw, fh, count, scale=1):
@@ -139,7 +161,6 @@ class Player:
             frames.append(f)
         return frames
 
-    # совместимость с предыдущим кодом
     def load_animations(self, sheet, curr_y, frame_w, frame_h, frame_count, scale=1):
         return self._load(curr_y, frame_w, frame_h, frame_count, scale)
 
@@ -169,7 +190,7 @@ class Player:
     # ── получение урона с i-frames ────────────────────────────────────────────
     def take_damage(self, amount: float):
         if self._iframe_cd > 0:
-            return   # неуязвима
+            return
         self.current_hp -= amount
         self._iframe_cd = IFRAME_DURATION
 
@@ -179,20 +200,16 @@ class Player:
 
     # ── конус атаки ───────────────────────────────────────────────────────────
     def get_attack_cone(self):
-        """
-        Возвращает (origin_x, origin_y, direction_angle_deg, half_angle_deg, radius).
-        origin — центр игрока, немного сдвинутый в сторону атаки.
-        """
-        cx, cy = self.rect.centerx, self.rect.centery
-        angle  = FACING_ANGLES[self.facing]
-        # сдвиг начала конуса чуть вперёд
+        """Начало конуса — от хитбокса (реальная позиция ног), не от центра спрайта."""
+        cx = float(self.hitbox.centerx)
+        cy = float(self.hitbox.centery)
+        angle = FACING_ANGLES[self.facing]
         rad = math.radians(angle)
         ox  = cx + math.cos(rad) * 20
         oy  = cy + math.sin(rad) * 20
         return ox, oy, angle, ATTACK_CONE_ANGLE, ATTACK_CONE_RADIUS
 
     def point_in_attack_cone(self, px: float, py: float) -> bool:
-        """True, если точка (px, py) попадает в конус атаки."""
         ox, oy, dir_deg, half_deg, radius = self.get_attack_cone()
         dx, dy = px - ox, py - oy
         dist = math.hypot(dx, dy)
@@ -204,13 +221,8 @@ class Player:
             diff = 360 - diff
         return diff <= half_deg
 
-    # ── нанесение удара (вызывается из main в нужный момент анимации) ─────────
+    # ── нанесение удара ───────────────────────────────────────────────────────
     def try_deal_attack(self, slime_manager) -> bool:
-        """
-        Проверяет: идёт ли анимация атаки, не истёк ли кд, не был ли удар
-        уже нанесён в этой анимации. Если всё ок — бьёт слаймов в конусе.
-        Возвращает True, если удар был нанесён.
-        """
         if not self.is_attacking:
             return False
         if self._attack_cd > 0:
@@ -218,13 +230,11 @@ class Player:
         if self._hit_dealt:
             return False
 
-        # «активный» фрейм атаки: примерно 35–70% анимации
         total = len(self.animations["attack"][self.facing])
         progress = self.frame_index / total
         if not (0.30 <= progress <= 0.70):
             return False
 
-        # наносим урон
         dmg = self.stats.damage()
         hit_any = False
         for slime in slime_manager.slimes:
@@ -242,8 +252,8 @@ class Player:
     def update_player(self, keys, dt: float = 1.0):
         dt_sec = dt / 60.0
 
-        if self._attack_cd  > 0: self._attack_cd  = max(0.0, self._attack_cd  - dt_sec)
-        if self._iframe_cd  > 0: self._iframe_cd  = max(0.0, self._iframe_cd  - dt_sec)
+        if self._attack_cd > 0: self._attack_cd = max(0.0, self._attack_cd - dt_sec)
+        if self._iframe_cd > 0: self._iframe_cd = max(0.0, self._iframe_cd - dt_sec)
 
         if self.is_attacking:
             self.animate(dt)
@@ -262,44 +272,52 @@ class Player:
             moving = True
         else:
             if keys[pygame.K_w]:
-                self.rect.y -= spd; self.facing = "up";    moving = True
+                self.world_y -= spd; self.facing = "up";    moving = True
             elif keys[pygame.K_s]:
-                self.rect.y += spd; self.facing = "down";  moving = True
+                self.world_y += spd; self.facing = "down";  moving = True
             if keys[pygame.K_a]:
-                self.rect.x -= spd; self.facing = "left";  moving = True
+                self.world_x -= spd; self.facing = "left";  moving = True
             elif keys[pygame.K_d]:
-                self.rect.x += spd; self.facing = "right"; moving = True
+                self.world_x += spd; self.facing = "right"; moving = True
 
         if not moving:
             self.state = "idle"
 
+        # Синхронизируем rect и hitbox после изменения world_x/y
+        self._sync_rects()
         self.animate(dt)
 
     def animate(self, dt: float = 1.0):
-        anim  = self.animations[self.state]
+        anim   = self.animations[self.state]
         frames = anim[self.facing]
         self.frame_index += anim["speed"] * dt
+
         if self.frame_index >= len(frames):
             self.frame_index = 0.0
             if self.is_attacking:
                 self.is_attacking = False
                 self._hit_dealt   = False
                 self.state = "idle"
-        old = self.rect.center
+
+        # rect меняет размер под спрайт, но центрируется по world_x/y
         self.image = frames[int(self.frame_index)]
-        self.rect  = self.image.get_rect(center=old)
+        self.rect  = self.image.get_rect(center=(int(self.world_x), int(self.world_y)))
+        # hitbox не меняется — просто переставляем на место
+        self.hitbox.center = (int(self.world_x),
+                              int(self.world_y) + HITBOX_OFFSET_Y)
 
     # ── сериализация ──────────────────────────────────────────────────────────
     def to_dict(self):
-        return {"x": self.rect.centerx, "y": self.rect.centery,
+        return {"x": self.world_x, "y": self.world_y,
                 "level": self.level, "xp": self.xp,
                 "current_hp": self._current_hp,
                 "stats": self.stats.to_dict(),
                 "inventory": self.inventory.to_dict()}
 
     def from_dict(self, d):
-        self.rect.center = (d.get("x", self.rect.centerx),
-                            d.get("y", self.rect.centery))
+        self.world_x = float(d.get("x", self.world_x))
+        self.world_y = float(d.get("y", self.world_y))
+        self._sync_rects()
         self.level = d.get("level", 1)
         self.xp    = d.get("xp",    0)
         self.stats.from_dict(d.get("stats", {}))
