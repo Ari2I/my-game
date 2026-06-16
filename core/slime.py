@@ -8,6 +8,9 @@ core/slime.py — враг «Слайм» v2.
     гарантирует что несколько слаймов атакуют с разных углов.
   • Задержка урона: ATTACK_COOLDOWN + i-frames на игроке.
   • Разделение между слаймами (anti-clustering).
+
+Отрисовка вынесена в core/render/slime_renderer.py (PlayerRenderer/SlimeRenderer
+не хранятся здесь — этот модуль не знает о pygame.draw/screen.blit).
 """
 
 import pygame
@@ -39,18 +42,6 @@ SLIME_RADIUS = 20
 # Орбитальный «предпочтительный» угол — у каждого слайма свой,
 # чтобы они окружали игрока с разных сторон
 ORBIT_SPREAD = 55.0   # °, насколько слайм отклоняется от прямой к цели
-
-# Цвета
-C_BODY      = ( 70, 175,  70)
-C_BODY_DARK = ( 45, 120,  45)
-C_BODY_RED  = (200,  80,  50)
-C_BODY_LUNGE= (120, 220,  90)
-C_BODY_STUN = (180, 180,  60)
-C_EYE       = (255, 255, 255)
-C_PUPIL     = ( 20,  20,  20)
-C_HILITE    = (160, 230, 160)
-C_HP_BG     = ( 35,  10,  10)
-C_HP_FILL   = ( 90, 210,  70)
 
 
 class State:
@@ -99,7 +90,7 @@ class Slime:
         # Это заставляет их подходить с разных сторон
         self._orbit_offset = random.uniform(-ORBIT_SPREAD, ORBIT_SPREAD)
 
-        # Визуал
+        # Визуал (читается рендерером через свойства ниже)
         self._hit_flash     = 0.0
         self._bounce_phase  = random.uniform(0, math.pi * 2)
         self._squash        = 1.0
@@ -113,6 +104,25 @@ class Slime:
     def _enter(self, s: str):
         self.state = s
         self._state_timer = 0.0
+
+    # ── свойства для рендерера ──────────────────────────────────────────────
+    # Публичный read-only доступ к визуальным полям, которые нужны
+    # core.render.slime_renderer.SlimeRenderer для отрисовки.
+    @property
+    def hit_flash(self) -> float:
+        return self._hit_flash
+
+    @property
+    def bounce_phase(self) -> float:
+        return self._bounce_phase
+
+    @property
+    def squash(self) -> float:
+        return self._squash
+
+    @property
+    def state_timer(self) -> float:
+        return self._state_timer
 
     # ─────────────────────────────────────────────────────────────────────────
     def update(self, player, dt: float, map_w: int, map_h: int, others: list):
@@ -296,66 +306,6 @@ class Slime:
         player.gain_xp(SLIME_XP_REWARD)
         player.inventory.slime_goo += random.randint(1, SLIME_GOO_DROP_MAX)
 
-    # ── отрисовка ─────────────────────────────────────────────────────────────
-    def draw(self, screen, camera_x=0, camera_y=0):
-        if not self.alive:
-            return
-
-        sx = int(self.x) - camera_x
-        sy = int(self.y) - camera_y
-
-        bounce_y = 0
-        if self.state in (State.APPROACH, State.WANDER):
-            bounce_y = int(math.sin(self._bounce_phase) * 5)
-
-        shake_x = 0
-        if self.state == State.PREPARE:
-            shake_x = int(math.sin(self._state_timer * 42) * 3)
-
-        cx = sx + shake_x
-        cy = sy + bounce_y
-
-        if   self._hit_flash > 0:             body_color = C_BODY_RED
-        elif self.state == State.STUNNED:      body_color = C_BODY_STUN
-        elif self.state == State.LUNGE:        body_color = C_BODY_LUNGE
-        elif self.state == State.WANDER:       body_color = C_BODY_DARK
-        else:                                  body_color = C_BODY
-
-        sq = max(0.5, min(self._squash, 1.4))
-        rw = int(SLIME_RADIUS * 2 * (2.0 - sq))
-        rh = int(SLIME_RADIUS * 2 * sq * 0.9)
-
-        body_rect = pygame.Rect(cx - rw // 2,
-                                cy - rh // 2 + (SLIME_RADIUS - rh // 2),
-                                rw, rh)
-        pygame.draw.ellipse(screen, body_color, body_rect)
-        pygame.draw.ellipse(screen, C_BODY_DARK, body_rect, width=1)
-
-        # блик
-        hi_w = max(4, rw // 3)
-        hi_h = max(3, rh // 4)
-        hi   = pygame.Surface((hi_w, hi_h), pygame.SRCALPHA)
-        pygame.draw.ellipse(hi, (*C_HILITE, 110), hi.get_rect())
-        screen.blit(hi, (cx - rw // 4, cy - rh // 3 + (SLIME_RADIUS - rh // 2)))
-
-        # глаза
-        for ex_off in (-7, 7):
-            ex = cx + ex_off
-            ey = cy - rh // 3
-            pygame.draw.circle(screen, C_EYE,   (ex, ey), 5)
-            po = (1, 2) if self.state == State.WANDER else (1, 0)
-            pygame.draw.circle(screen, C_PUPIL, (ex + po[0], ey + po[1]), 2)
-
-        # HP-бар
-        bw, bh = 38, 5
-        bx = cx - bw // 2
-        by = cy - SLIME_RADIUS - 12
-        pygame.draw.rect(screen, C_HP_BG,   (bx, by, bw, bh), border_radius=2)
-        filled = int(bw * self.hp / self.max_hp) if self.max_hp > 0 else 0
-        if filled > 0:
-            pygame.draw.rect(screen, C_HP_FILL, (bx, by, filled, bh), border_radius=2)
-        pygame.draw.rect(screen, (0, 0, 0), (bx, by, bw, bh), width=1, border_radius=2)
-
 
 # ─── Менеджер ─────────────────────────────────────────────────────────────────
 class SlimeManager:
@@ -364,23 +314,8 @@ class SlimeManager:
     def __init__(self, map_w: int, map_h: int):
         self.map_w = map_w
         self.map_h = map_h
-
-        # Зона спавна по умолчанию — вся карта.
-        # Используйте set_spawn_area(), если реальная отрисованная область
-        # карты меньше номинального размера tmx (иначе слаймы могут
-        # спавниться на пустых краях карты).
-        self.spawn_x0: float = 0.0
-        self.spawn_y0: float = 0.0
-        self.spawn_x1: float = float(map_w)
-        self.spawn_y1: float = float(map_h)
-
         self.slimes: list[Slime] = []
         self._to_die: list[Slime] = []
-
-    def set_spawn_area(self, x0: float, y0: float, x1: float, y1: float):
-        """Задаёт прямоугольную зону, по краям которой будут спавниться слаймы."""
-        self.spawn_x0, self.spawn_y0 = x0, y0
-        self.spawn_x1, self.spawn_y1 = x1, y1
 
     def spawn_wave(self, wave: int = 1, count: int = 5):
         for _ in range(count):
@@ -393,25 +328,11 @@ class SlimeManager:
 
     def _edge_pos(self):
         m = self.EDGE_MARGIN
-
-        x0 = self.spawn_x0 + m
-        y0 = self.spawn_y0 + m
-        x1 = self.spawn_x1 - m
-        y1 = self.spawn_y1 - m
-
-        # если зона спавна слишком маленькая для отступа — используем её без отступа
-        if x1 <= x0:
-            x0, x1 = self.spawn_x0, self.spawn_x1
-        if y1 <= y0:
-            y0, y1 = self.spawn_y0, self.spawn_y1
-
-        x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
-
         s = random.randint(0, 3)
-        if   s == 0: return random.randint(x0, x1), y0
-        elif s == 1: return random.randint(x0, x1), y1
-        elif s == 2: return x0, random.randint(y0, y1)
-        else:        return x1, random.randint(y0, y1)
+        if   s == 0: return random.randint(m, self.map_w - m), m
+        elif s == 1: return random.randint(m, self.map_w - m), self.map_h - m
+        elif s == 2: return m,              random.randint(m, self.map_h - m)
+        else:        return self.map_w - m, random.randint(m, self.map_h - m)
 
     def update(self, player, dt: float):
         alive = []
@@ -429,10 +350,6 @@ class SlimeManager:
         for s in self.slimes:
             if player.point_in_attack_cone(s.x, s.y):
                 s.take_damage(dmg)
-
-    def draw(self, screen, camera_x=0, camera_y=0):
-        for s in self.slimes:
-            s.draw(screen, camera_x, camera_y)
 
     @property
     def count(self):

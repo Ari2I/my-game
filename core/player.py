@@ -18,12 +18,6 @@ ATTACK_CONE_RADIUS = 110    # дальность удара в пикселях
 ATTACK_COOLDOWN    = 0.55   # сек между ударами игрока
 IFRAME_DURATION    = 0.65   # сек неуязвимости после получения урона (i-frames)
 
-# ─── Коллизионный хитбокс игрока ───────────────────────────────────────────────
-# Размер НЕ зависит от размера кадров анимации (idle/walk — 64x64, attack — 192x192).
-# Должен быть меньше тайла стены (64x64), чтобы персонаж не цеплялся за края.
-PLAYER_HITBOX_W = 36
-PLAYER_HITBOX_H = 50
-
 # Углы направлений (в градусах, от оси X вправо)
 FACING_ANGLES = {
     "right": 0.0,
@@ -120,10 +114,7 @@ class Player:
         self.is_attacking = False
 
         self.image = self.animations["idle"]["down"][0]
-
-        # ── хитбокс игрока (фиксированный размер, не зависит от кадра анимации)
-        self.rect = pygame.Rect(0, 0, PLAYER_HITBOX_W, PLAYER_HITBOX_H)
-        self.rect.center = (x, y)
+        self.rect  = self.image.get_rect(center=(x, y))
 
         self.stats     = Stats()
         self.inventory = Inventory()
@@ -294,38 +285,9 @@ class Player:
                 self.is_attacking = False
                 self._hit_dealt   = False
                 self.state = "idle"
-        # ВАЖНО: self.rect — это коллизионный хитбокс фиксированного размера,
-        # его размер/позиция НЕ пересчитываются по размеру кадра анимации.
+        old = self.rect.center
         self.image = frames[int(self.frame_index)]
-
-    def draw(self, screen, camera_x=0, camera_y=0):
-        # картинка может быть крупнее хитбокса (например, кадры атаки 192x192) —
-        # центрируем её относительно хитбокса для отрисовки
-        img_rect = self.image.get_rect(center=self.rect.center)
-        screen.blit(self.image, (img_rect.x - camera_x, img_rect.y - camera_y))
-
-    # ── отладочная отрисовка конуса ───────────────────────────────────────────
-    def draw_attack_cone(self, screen, camera_x=0, camera_y=0):
-        """Рисует конус атаки (для отладки, вызвать до pygame.display.flip)."""
-        if not self.is_attacking:
-            return
-        ox, oy, dir_deg, half_deg, radius = self.get_attack_cone()
-        sx, sy = int(ox) - camera_x, int(oy) - camera_y
-
-        cone_surf = pygame.Surface((radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
-        # рисуем сектор полигоном
-        steps   = 20
-        start_a = math.radians(dir_deg - half_deg)
-        end_a   = math.radians(dir_deg + half_deg)
-        cx_s    = radius + 2
-        cy_s    = radius + 2
-        points  = [(cx_s, cy_s)]
-        for i in range(steps + 1):
-            a = start_a + (end_a - start_a) * i / steps
-            points.append((cx_s + math.cos(a) * radius, cy_s + math.sin(a) * radius))
-        pygame.draw.polygon(cone_surf, (255, 220, 50, 55), points)
-        pygame.draw.polygon(cone_surf, (255, 220, 50, 130), points, width=2)
-        screen.blit(cone_surf, (sx - radius - 2, sy - radius - 2))
+        self.rect  = self.image.get_rect(center=old)
 
     # ── сериализация ──────────────────────────────────────────────────────────
     def to_dict(self):
