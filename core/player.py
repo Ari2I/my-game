@@ -1,32 +1,74 @@
+"""
+core/player.py — модель игрока (Model в паттерне MVC).
+
+Принцип SRP: этот модуль отвечает только за данные и логику игрока.
+Отрисовка вынесена в core/render/player_renderer.py.
+
+Принцип DRY: все «магические числа» вынесены в именованные константы.
+"""
+
 import pygame
 import math
 
 # ─── Константы прокачки ───────────────────────────────────────────────────────
-BASE_HP       = 100
-BASE_SPEED    = 5
-BASE_DAMAGE   = 15
-XP_PER_LEVEL  = 100
+BASE_HP            = 100
+BASE_SPEED         = 5
+BASE_DAMAGE        = 15
+XP_PER_LEVEL       = 100
 
 STAT_POINTS_PER_LEVEL = 3
-HP_PER_POINT     = 20
-SPEED_PER_POINT  = 0.4
-DAMAGE_PER_POINT = 8
+HP_PER_POINT          = 20
+SPEED_PER_POINT       = 0.4
+DAMAGE_PER_POINT      = 8
 
 # ─── Параметры атаки ──────────────────────────────────────────────────────────
-ATTACK_CONE_ANGLE  = 80.0
-ATTACK_CONE_RADIUS = 110
-ATTACK_COOLDOWN    = 0.55
-IFRAME_DURATION    = 0.65
+ATTACK_CONE_ANGLE  = 80.0    # полуугол конуса атаки, градусы
+ATTACK_CONE_RADIUS = 110     # радиус конуса атаки, пикселей
+ATTACK_COOLDOWN    = 0.55    # секунд между атаками
+IFRAME_DURATION    = 0.65    # секунд неуязвимости после получения урона
+
+# Прогресс анимации атаки [0..1], в котором засчитывается удар
+ATTACK_HIT_START   = 0.30
+ATTACK_HIT_END     = 0.70
+
+# Смещение начала конуса атаки от центра хитбокса вперёд, пикселей
+ATTACK_CONE_OFFSET = 20
 
 # ─── Хитбокс ──────────────────────────────────────────────────────────────────
 HITBOX_W        = 28
 HITBOX_H        = 28
 # Смещение хитбокса вниз от world_x/y (центра спрайта).
-# Меняй только это число — хитбокс сдвинется к ногам.
 HITBOX_OFFSET_Y = 30
 
-FACING_ANGLES = {
-    "right": 0.0,
+# ─── Раскладка спрайтшита ─────────────────────────────────────────────────────
+# Формат: (y_offset, frame_w, frame_h, frame_count, scale)
+SPRITE_SHEET_LAYOUT = {
+    "walk": {
+        "down":  (640,  64,  64, 9, 2),
+        "left":  (576,  64,  64, 9, 2),
+        "right": (704,  64,  64, 9, 2),
+        "up":    (512,  64,  64, 9, 2),
+        "speed": 0.5,
+    },
+    "attack": {
+        "down":  (3840, 192, 192, 6, 2),
+        "up":    (3456, 192, 192, 6, 2),
+        "left":  (3648, 192, 192, 6, 2),
+        "right": (4032, 192, 192, 6, 2),
+        "speed": 0.5,
+    },
+    "idle": {
+        "down":  (1536, 64, 64, 2, 2),
+        "left":  (1472, 64, 64, 2, 2),
+        "up":    (1408, 64, 64, 2, 2),
+        "right": (1600, 64, 64, 2, 2),
+        "speed": 0.15,
+    },
+}
+
+# ─── Углы направлений ─────────────────────────────────────────────────────────
+FACING_ANGLES: dict[str, float] = {
+    "right":  0.0,
     "down":  90.0,
     "left":  180.0,
     "up":    270.0,
@@ -34,22 +76,24 @@ FACING_ANGLES = {
 
 
 class Stats:
-    def __init__(self):
-        self.vitality    = 0
-        self.power       = 0
-        self.agility     = 0
-        self.free_points = 0
+    """Характеристики персонажа. Чистая модель без pygame."""
 
-    def max_hp(self):
+    def __init__(self):
+        self.vitality:    int = 0
+        self.power:       int = 0
+        self.agility:     int = 0
+        self.free_points: int = 0
+
+    def max_hp(self) -> int:
         return BASE_HP + self.vitality * HP_PER_POINT
 
-    def speed(self):
+    def speed(self) -> float:
         return BASE_SPEED + self.agility * SPEED_PER_POINT
 
-    def damage(self):
+    def damage(self) -> int:
         return BASE_DAMAGE + self.power * DAMAGE_PER_POINT
 
-    def add_point(self, stat: str):
+    def add_point(self, stat: str) -> bool:
         if self.free_points <= 0:
             return False
         if stat == "vitality":
@@ -63,11 +107,15 @@ class Stats:
         self.free_points -= 1
         return True
 
-    def to_dict(self):
-        return {"vitality": self.vitality, "power": self.power,
-                "agility": self.agility, "free_points": self.free_points}
+    def to_dict(self) -> dict:
+        return {
+            "vitality":    self.vitality,
+            "power":       self.power,
+            "agility":     self.agility,
+            "free_points": self.free_points,
+        }
 
-    def from_dict(self, d):
+    def from_dict(self, d: dict):
         self.vitality    = d.get("vitality",    0)
         self.power       = d.get("power",       0)
         self.agility     = d.get("agility",     0)
@@ -75,44 +123,62 @@ class Stats:
 
 
 class Inventory:
+    """Инвентарь игрока. Хранит предметы в словаре items."""
+
     def __init__(self):
-        self.slime_goo = 0
+        # Словарь предметов: {название: количество}
+        # Обратная совместимость: slime_goo доступен как свойство
+        self.items: dict[str, int] = {}
 
-    def to_dict(self):
-        return {"slime_goo": self.slime_goo}
+    def add_item(self, name: str, amount: int = 1):
+        """Добавить предмет в инвентарь."""
+        self.items[name] = self.items.get(name, 0) + amount
 
-    def from_dict(self, d):
-        self.slime_goo = d.get("slime_goo", 0)
+    def get_item(self, name: str) -> int:
+        """Получить количество предмета (0 если нет)."""
+        return self.items.get(name, 0)
+
+    # ── обратная совместимость с кодом, который обращается к slime_goo напрямую
+    @property
+    def slime_goo(self) -> int:
+        return self.items.get("slime_goo", 0)
+
+    @slime_goo.setter
+    def slime_goo(self, value: int):
+        self.items["slime_goo"] = value
+
+    def to_dict(self) -> dict:
+        return {"items": self.items.copy()}
+
+    def from_dict(self, d: dict):
+        # Поддержка старого формата (slime_goo напрямую)
+        if "items" in d:
+            self.items = d["items"].copy()
+        elif "slime_goo" in d:
+            self.items = {"slime_goo": d["slime_goo"]}
+        else:
+            self.items = {}
 
 
 class Player:
+    """
+    Модель игрока: данные + логика + анимация.
+    Отрисовка — в core/render/player_renderer.py (принцип SRP).
+    """
+
     def __init__(self, x, y):
         self.sprite_sheet = pygame.image.load(
             "images/character-spritesheet.png").convert_alpha()
 
-        self.animations = {
-            "walk": {
-                "down":  self._load(640,  64,  64, 9, 2),
-                "left":  self._load(576,  64,  64, 9, 2),
-                "right": self._load(704,  64,  64, 9, 2),
-                "up":    self._load(512,  64,  64, 9, 2),
-                "speed": 0.5,
-            },
-            "attack": {
-                "down":  self._load(3840, 192, 192, 6, 2),
-                "up":    self._load(3456, 192, 192, 6, 2),
-                "left":  self._load(3648, 192, 192, 6, 2),
-                "right": self._load(4032, 192, 192, 6, 2),
-                "speed": 0.5,
-            },
-            "idle": {
-                "down":  self._load(1536, 64, 64, 2, 2),
-                "left":  self._load(1472, 64, 64, 2, 2),
-                "up":    self._load(1408, 64, 64, 2, 2),
-                "right": self._load(1600, 64, 64, 2, 2),
-                "speed": 0.15,
-            },
-        }
+        # Загружаем анимации из раскладки спрайтшита
+        self.animations: dict = {}
+        for anim_name, anim_data in SPRITE_SHEET_LAYOUT.items():
+            self.animations[anim_name] = {"speed": anim_data["speed"]}
+            for direction in ("down", "left", "right", "up"):
+                if direction in anim_data:
+                    y_off, fw, fh, count, scale = anim_data[direction]
+                    self.animations[anim_name][direction] = self._load(
+                        y_off, fw, fh, count, scale)
 
         self.state        = "idle"
         self.facing       = "down"
@@ -120,8 +186,6 @@ class Player:
         self.is_attacking = False
 
         # ── Мировые координаты (центр спрайта) ───────────────────────────────
-        # Единственный источник истины о позиции персонажа.
-        # Движение и коллизии работают только через эти два числа.
         self.world_x = float(x)
         self.world_y = float(y)
 
@@ -145,14 +209,13 @@ class Player:
 
     # ── синхронизация rect и hitbox из world_x/y ─────────────────────────────
     def _sync_rects(self):
-        """Пересчитывает hitbox и rect из world_x/world_y.
-        Вызывается после любого изменения позиции."""
+        """Пересчитывает hitbox и rect из world_x/world_y."""
         self.hitbox.center = (int(self.world_x),
                               int(self.world_y) + HITBOX_OFFSET_Y)
         self.rect.center   = (int(self.world_x), int(self.world_y))
 
     # ── загрузка кадров ───────────────────────────────────────────────────────
-    def _load(self, y, fw, fh, count, scale=1):
+    def _load(self, y: int, fw: int, fh: int, count: int, scale: int = 1):
         frames = []
         for i in range(count):
             f = self.sprite_sheet.subsurface((i * fw, y, fw, fh))
@@ -162,15 +225,16 @@ class Player:
         return frames
 
     def load_animations(self, sheet, curr_y, frame_w, frame_h, frame_count, scale=1):
+        """Публичный метод для загрузки анимаций вне конструктора."""
         return self._load(curr_y, frame_w, frame_h, frame_count, scale)
 
     # ── HP ────────────────────────────────────────────────────────────────────
     @property
-    def current_hp(self):
+    def current_hp(self) -> float:
         return self._current_hp
 
     @current_hp.setter
-    def current_hp(self, value):
+    def current_hp(self, value: float):
         self._current_hp = max(0.0, min(float(value), float(self.stats.max_hp())))
 
     # ── опыт ─────────────────────────────────────────────────────────────────
@@ -184,7 +248,7 @@ class Player:
             self._current_hp = float(self.stats.max_hp())
             needed = XP_PER_LEVEL * self.level
 
-    def xp_to_next(self):
+    def xp_to_next(self) -> int:
         return XP_PER_LEVEL * self.level
 
     # ── получение урона с i-frames ────────────────────────────────────────────
@@ -195,24 +259,24 @@ class Player:
         self._iframe_cd = IFRAME_DURATION
 
     @property
-    def is_invincible(self):
+    def is_invincible(self) -> bool:
         return self._iframe_cd > 0
 
     # ── конус атаки ───────────────────────────────────────────────────────────
-    def get_attack_cone(self):
-        """Начало конуса — от хитбокса (реальная позиция ног), не от центра спрайта."""
+    def get_attack_cone(self) -> tuple:
+        """Возвращает (ox, oy, angle, half_angle, radius)."""
         cx = float(self.hitbox.centerx)
         cy = float(self.hitbox.centery)
         angle = FACING_ANGLES[self.facing]
-        rad = math.radians(angle)
-        ox  = cx + math.cos(rad) * 20
-        oy  = cy + math.sin(rad) * 20
+        rad   = math.radians(angle)
+        ox    = cx + math.cos(rad) * ATTACK_CONE_OFFSET
+        oy    = cy + math.sin(rad) * ATTACK_CONE_OFFSET
         return ox, oy, angle, ATTACK_CONE_ANGLE, ATTACK_CONE_RADIUS
 
     def point_in_attack_cone(self, px: float, py: float) -> bool:
         ox, oy, dir_deg, half_deg, radius = self.get_attack_cone()
         dx, dy = px - ox, py - oy
-        dist = math.hypot(dx, dy)
+        dist   = math.hypot(dx, dy)
         if dist > radius or dist < 1e-3:
             return False
         point_angle = math.degrees(math.atan2(dy, dx)) % 360
@@ -222,7 +286,11 @@ class Player:
         return diff <= half_deg
 
     # ── нанесение удара ───────────────────────────────────────────────────────
-    def try_deal_attack(self, slime_manager) -> bool:
+    def try_deal_attack(self, enemy_manager) -> bool:
+        """
+        Проверяет конус атаки и наносит урон врагам.
+        Принимает любой EnemyManager (или совместимый объект).
+        """
         if not self.is_attacking:
             return False
         if self._attack_cd > 0:
@@ -230,19 +298,19 @@ class Player:
         if self._hit_dealt:
             return False
 
-        total = len(self.animations["attack"][self.facing])
+        total    = len(self.animations["attack"][self.facing])
         progress = self.frame_index / total
-        if not (0.30 <= progress <= 0.70):
+        if not (ATTACK_HIT_START <= progress <= ATTACK_HIT_END):
             return False
 
-        dmg = self.stats.damage()
+        dmg     = self.stats.damage()
         hit_any = False
-        for slime in slime_manager.slimes:
-            if self.point_in_attack_cone(slime.x, slime.y):
-                slime.take_damage(dmg)
+        for enemy in enemy_manager.enemies:
+            if self.point_in_attack_cone(enemy.x, enemy.y):
+                enemy.take_damage(dmg)
                 hit_any = True
 
-        if hit_any or progress >= 0.30:
+        if hit_any or progress >= ATTACK_HIT_START:
             self._hit_dealt = True
             self._attack_cd = ATTACK_COOLDOWN
 
@@ -283,7 +351,6 @@ class Player:
         if not moving:
             self.state = "idle"
 
-        # Синхронизируем rect и hitbox после изменения world_x/y
         self._sync_rects()
         self.animate(dt)
 
@@ -299,22 +366,24 @@ class Player:
                 self._hit_dealt   = False
                 self.state = "idle"
 
-        # rect меняет размер под спрайт, но центрируется по world_x/y
         self.image = frames[int(self.frame_index)]
         self.rect  = self.image.get_rect(center=(int(self.world_x), int(self.world_y)))
-        # hitbox не меняется — просто переставляем на место
         self.hitbox.center = (int(self.world_x),
                               int(self.world_y) + HITBOX_OFFSET_Y)
 
     # ── сериализация ──────────────────────────────────────────────────────────
-    def to_dict(self):
-        return {"x": self.world_x, "y": self.world_y,
-                "level": self.level, "xp": self.xp,
-                "current_hp": self._current_hp,
-                "stats": self.stats.to_dict(),
-                "inventory": self.inventory.to_dict()}
+    def to_dict(self) -> dict:
+        return {
+            "x":          self.world_x,
+            "y":          self.world_y,
+            "level":      self.level,
+            "xp":         self.xp,
+            "current_hp": self._current_hp,
+            "stats":      self.stats.to_dict(),
+            "inventory":  self.inventory.to_dict(),
+        }
 
-    def from_dict(self, d):
+    def from_dict(self, d: dict):
         self.world_x = float(d.get("x", self.world_x))
         self.world_y = float(d.get("y", self.world_y))
         self._sync_rects()
