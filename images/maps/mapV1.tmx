@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="60" height="60" tilewidth="16" tileheight="16" infinite="0" nextlayerid="15" nextobjectid="286">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="60" height="60" tilewidth="16" tileheight="16" infinite="0" nextlayerid="15" nextobjectid="289">
  <tileset firstgid="1" source="../../../../OneDrive/Рабочий стол/map/Tiled_files/Water_detilazation2.tsx"/>
  <tileset firstgid="2887" source="../../../../OneDrive/Рабочий стол/test tiles/Ground.tsx"/>
  <tileset firstgid="5127" source="../../../../OneDrive/Рабочий стол/test tiles/water_coasts.tsx"/>
@@ -592,10 +592,10 @@
   <object id="76" x="206.667" y="-0.0833" width="52.6667" height="114.417"/>
   <object id="77" x="133.333" y="0.25" width="60" height="94.0833"/>
   <object id="78" x="324.417" y="0.3333" width="53.4167" height="78.6667"/>
-  <object id="79" x="400.667" y="0.5" width="49.3333" height="109.5"/>
+  <object id="79" x="412.917" y="0.5" width="24.0833" height="97.25"/>
   <object id="80" x="377.333" y="0" width="26.3333" height="78.6667"/>
   <object id="81" x="425" y="-0.0833" width="115.667" height="49"/>
-  <object id="82" x="567.667" y="171" width="32" height="22.6667"/>
+  <object id="82" x="574.542" y="179" width="18.875" height="14.6667"/>
   <object id="83" x="541.167" y="86.25" width="81.5" height="62.083"/>
   <object id="86" x="647.25" y="101.75" width="62.75" height="8.25"/>
   <object id="87" x="749.667" y="160" width="37" height="50.3333"/>
@@ -774,5 +774,8 @@
   <object id="283" x="30.5" y="255" width="17.25" height="21"/>
   <object id="284" x="29" y="193.25" width="18.5" height="29.25"/>
   <object id="285" x="0.25" y="361.75" width="14.75" height="89.5"/>
+  <object id="286" x="0.25" y="361.75" width="14.75" height="89.5"/>
+  <object id="287" x="402.182" y="55.6364" width="47.0909" height="29.8182"/>
+  <object id="288" x="409.455" y="101.091" width="29.4545" height="7.63636"/>
  </objectgroup>
 </map>
