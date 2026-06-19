@@ -2,7 +2,8 @@
 main.py — точка входа.
 
 Горячие клавиши в игре:
-  ESC   — главное меню
+  ESC   — пауза (PauseMenu)
+  TAB   — инвентарь (InventoryPanel)
   F3    — счётчик FPS
   F4    — отладка: показать коллизионные стены + хитбокс игрока
   F5    — отладка: показать конус атаки игрока
@@ -20,21 +21,25 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from core.map import TileMap
-from core.player import Player, HITBOX_OFFSET_Y
-from core.hud import HUD
-from core.menu import MainMenu
-from core.slime import SlimeManager
-from core.ranged_enemy import RangedEnemyManager
-from core.wave_manager import WaveManager
-from core.walls import WallMap
+from core.map            import TileMap
+from core.player         import Player, HITBOX_OFFSET_Y
+from core.hud            import HUD
+from core.menu           import MainMenu
+from core.pause_menu     import PauseMenu
+from core.inventory_ui   import InventoryPanel
+from core.intro_screen   import IntroScreen
+from core.audio          import AudioManager
+from core.slime          import SlimeManager
+from core.ranged_enemy   import RangedEnemyManager
+from core.wave_manager   import WaveManager
+from core.walls          import WallMap
 
-from core.render.player_renderer import PlayerRenderer
-from core.render.slime_renderer import SlimeManagerRenderer
+from core.render.player_renderer       import PlayerRenderer
+from core.render.slime_renderer        import SlimeManagerRenderer
 from core.render.ranged_enemy_renderer import RangedEnemyManagerRenderer
 
-WIDTH = 1920
-HEIGHT = 1080
+WIDTH      = 1920
+HEIGHT     = 1080
 TARGET_FPS = 120
 
 pygame.init()
@@ -45,9 +50,9 @@ clock = pygame.time.Clock()
 font_fps = pygame.font.SysFont(None, 26)
 font_dbg = pygame.font.SysFont(None, 22)
 
-show_fps = False
+show_fps   = False
 show_walls = False
-show_cone = False
+show_cone  = False
 
 
 # ── кешированная карта ────────────────────────────────────────────────────────
@@ -71,7 +76,7 @@ class CachedTileMap(TileMap):
         for layer in self.tmx_data.visible_layers:
             if isinstance(layer, pytmx.TiledTileLayer):
                 for x, y, gid in layer:
-                    tx = x * self.tile_width - camera_x
+                    tx = x * self.tile_width  - camera_x
                     ty = y * self.tile_height - camera_y
                     if tx > sw or ty > sh or tx < -self.tile_width or ty < -self.tile_height:
                         continue
@@ -84,12 +89,10 @@ class CachedTileMap(TileMap):
 class _CombinedEnemyView:
     """
     Позволяет player.try_deal_attack работать со всеми врагами сразу.
-    Объединяет enemies из SlimeManager и RangedEnemyManager в один список.
     Принцип ISP: Player видит только интерфейс .enemies.
     """
-
     def __init__(self, slime_mgr, ranged_mgr):
-        self._slime_mgr = slime_mgr
+        self._slime_mgr  = slime_mgr
         self._ranged_mgr = ranged_mgr
 
     @property
@@ -102,7 +105,7 @@ def run_game(save_path=None):
     global show_fps, show_walls, show_cone
 
     game_map = CachedTileMap("images/maps/mapV1.tmx")
-    map_w_px = game_map.tmx_data.width * game_map.tile_width
+    map_w_px = game_map.tmx_data.width  * game_map.tile_width
     map_h_px = game_map.tmx_data.height * game_map.tile_height
 
     wall_map = WallMap(game_map.tmx_data, game_map.tile_width, game_map.tile_height)
@@ -117,40 +120,64 @@ def run_game(save_path=None):
         except Exception as e:
             print(f"[game] Ошибка загрузки: {e}")
 
-    hud = HUD(WIDTH, HEIGHT)
+    hud        = HUD(WIDTH, HEIGHT)
+    inv_panel  = InventoryPanel(WIDTH, HEIGHT)
+    pause_menu = PauseMenu(screen)
+    audio      = AudioManager()
+
     slimes = SlimeManager(map_w_px, map_h_px)
     ranged = RangedEnemyManager(map_w_px, map_h_px)
-
-    # WaveManager управляет волнами обоих менеджеров
-    wave_mgr = WaveManager(slimes, ranged)
-
-    # Адаптер для единого apply_damage из player
+    wave_mgr    = WaveManager(slimes, ranged)
     all_enemies = _CombinedEnemyView(slimes, ranged)
 
     player_renderer = PlayerRenderer(player)
-    slime_renderer = SlimeManagerRenderer()
+    slime_renderer  = SlimeManagerRenderer()
     ranged_renderer = RangedEnemyManagerRenderer()
+
+    # Запускаем фоновую музыку (если файл есть)
+    audio.play_music()
 
     # Debug стартовые данные
     player.inventory.slime_goo = 5
     player.gain_xp(80)
 
+    # Состояние игры
+    paused     = False
+    last_frame = pygame.Surface((WIDTH, HEIGHT))  # снимок последнего кадра для паузы
+
     while True:
         raw_ms = clock.tick(TARGET_FPS)
-        dt = min(raw_ms / (1000.0 / TARGET_FPS), 4.0)
-
+        dt     = min(raw_ms / (1000.0 / TARGET_FPS), 4.0)
         mouse_pos = pygame.mouse.get_pos()
 
+        # ── обработка событий ─────────────────────────────────────────────────
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "quit"
 
+            if paused:
+                pause_menu.update(mouse_pos)
+                result = pause_menu.handle_event(event)
+                if result == "resume":
+                    paused = False
+                elif result == "menu":
+                    return "menu"
+                elif result == "quit":
+                    return "quit"
+                continue  # пока пауза — игнорируем остальные события
+
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:  return "menu"
-                if event.key == pygame.K_F3:      show_fps = not show_fps
-                if event.key == pygame.K_F4:      show_walls = not show_walls
-                if event.key == pygame.K_F5:      show_cone = not show_cone
-                if event.key == pygame.K_h:       player.take_damage(10)
+                if event.key == pygame.K_ESCAPE:
+                    paused = True
+                    last_frame.blit(screen, (0, 0))  # снимок кадра для фона паузы
+
+                if event.key == pygame.K_TAB:
+                    inv_panel.toggle()
+
+                if event.key == pygame.K_F3:   show_fps   = not show_fps
+                if event.key == pygame.K_F4:   show_walls = not show_walls
+                if event.key == pygame.K_F5:   show_cone  = not show_cone
+                if event.key == pygame.K_h:    player.take_damage(10)
                 if event.key == pygame.K_x:
                     player.gain_xp(50)
                     player.inventory.add_item("slime_goo", 1)
@@ -161,6 +188,13 @@ def run_game(save_path=None):
 
             hud.handle_event(event, player)
 
+        # ── если пауза — рисуем оверлей и переходим к следующему кадру ───────
+        if paused:
+            pause_menu.update(mouse_pos)
+            pause_menu.draw(last_frame)
+            pygame.display.flip()
+            continue
+
         hud.update(mouse_pos)
 
         # ── обновление волн ───────────────────────────────────────────────────
@@ -170,30 +204,37 @@ def run_game(save_path=None):
         keys = pygame.key.get_pressed()
         player.update_player(keys, dt)
 
-        # Коллизия стен работает с hitbox
         wall_map.resolve_player(player.hitbox)
         player.world_x = float(player.hitbox.centerx)
         player.world_y = float(player.hitbox.centery) - HITBOX_OFFSET_Y
         player.rect.center = (int(player.world_x), int(player.world_y))
 
-        player.try_deal_attack(all_enemies)
+        hit_any = player.try_deal_attack(all_enemies)
+        if hit_any:
+            audio.play_sfx("hit")
 
         # ── обновление слаймов ────────────────────────────────────────────────
+        prev_slime_count = slimes.count
         slimes.update(player, dt)
+        if slimes.count < prev_slime_count:
+            audio.play_sfx("enemy_hurt")
         for slime in slimes.enemies:
             wall_map.resolve_entity(slime.rect)
             slime.x = float(slime.rect.centerx)
             slime.y = float(slime.rect.centery)
 
         # ── обновление дальних врагов и снарядов ─────────────────────────────
+        prev_ranged_count = ranged.count
         ranged.update(player, dt, wall_map)
+        if ranged.count < prev_ranged_count:
+            audio.play_sfx("enemy_hurt")
         for enemy in ranged.enemies:
             wall_map.resolve_entity(enemy.rect)
             enemy.x = float(enemy.rect.centerx)
             enemy.y = float(enemy.rect.centery)
 
-        # ── камера центрируется по hitbox ─────────────────────────────────────
-        camera_x = max(0, min(player.hitbox.centerx - WIDTH // 2, map_w_px - WIDTH))
+        # ── камера ────────────────────────────────────────────────────────────
+        camera_x = max(0, min(player.hitbox.centerx - WIDTH  // 2, map_w_px - WIDTH))
         camera_y = max(0, min(player.hitbox.centery - HEIGHT // 2, map_h_px - HEIGHT))
 
         # ── отрисовка ─────────────────────────────────────────────────────────
@@ -222,8 +263,9 @@ def run_game(save_path=None):
             pygame.draw.line(screen, (255, 255, 255), (wx, wy - 6), (wx, wy + 6), 1)
 
         hud.draw(screen, player)
+        inv_panel.draw(screen, player.inventory)
 
-        # Волна в HUD (поверх)
+        # Волна в HUD
         wave_surf = font_fps.render(
             f"Волна: {wave_mgr.wave}  |  Врагов: {wave_mgr.enemies_remaining}" +
             (f"  |  Следующая через {wave_mgr.time_until_next_wave:.1f}с"
@@ -240,7 +282,7 @@ def run_game(save_path=None):
 
         if show_walls or show_cone:
             hint = font_dbg.render(
-                "F4=стены+хитбокс  F5=конус  Q=слаймы  E=дальний враг",
+                "F4=стены+хитбокс  F5=конус  Q=слаймы  E=дальний  TAB=инвентарь",
                 True, (150, 150, 150))
             screen.blit(hint, (10, 36))
 
@@ -250,13 +292,20 @@ def run_game(save_path=None):
 # ── главный цикл ──────────────────────────────────────────────────────────────
 def main():
     while True:
-        menu = MainMenu(screen)
+        menu   = MainMenu(screen)
         result = menu.run()
 
         if result == "quit":
             break
 
-        save = result[len("load:"):] if result.startswith("load:") else None
+        # Перед новой игрой — показываем интро (ЭТАП 5.2)
+        if result == "new_game":
+            intro = IntroScreen(screen)
+            intro.run()   # "done" или "skip" — в любом случае запускаем игру
+            save = None
+        else:
+            save = result[len("load:"):] if result.startswith("load:") else None
+
         outcome = run_game(save_path=save)
 
         if outcome == "quit":

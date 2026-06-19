@@ -157,7 +157,7 @@ class EnemyManager:
     работает через общий интерфейс Enemy.
     """
 
-    EDGE_MARGIN: int = 192  # отступ от края карты при спавне (3 тайла × 64px)
+    EDGE_MARGIN: int = 450  # отступ от края карты при спавне (3 тайла × 64px)
 
     def __init__(self, map_w: int, map_h: int):
         self.map_w = map_w
