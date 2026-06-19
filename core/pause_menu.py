@@ -89,10 +89,10 @@ class PauseMenu:
         start_y = H // 2 - 60
 
         defs = [
-            ("▶  Продолжить", PANEL_BG, ACCENT, "resume"),
-            ("⚙  Настройки", PANEL_BG, ACCENT, "settings"),
-            ("🏠  Главное меню", PANEL_BG, ACCENT, "menu"),
-            ("✕  Выход", PANEL_BG, RED_EXIT, "quit"),
+            ("Продолжить", PANEL_BG, ACCENT, "resume"),
+            ("Настройки", PANEL_BG, ACCENT, "settings"),
+            ("Главное меню", PANEL_BG, ACCENT, "menu"),
+            ("Выход", PANEL_BG, RED_EXIT, "quit"),
         ]
         self._buttons: list[tuple[_Button, str]] = []
         for i, (label, cn, ch, action) in enumerate(defs):

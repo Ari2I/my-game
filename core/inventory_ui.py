@@ -23,10 +23,10 @@ C_ICON = (120, 200, 80)
 
 # ─── Константы иконок предметов ──────────────────────────────────────────────
 ITEM_ICONS: dict[str, str] = {
-    "slime_goo": "🟢",
-    "rare_slime_goo": "💚",
-    "magic_shard": "🔷",
-    "rune_stone": "🔮",
+    "slime_goo": "",
+    "rare_slime_goo": "",
+    "magic_shard": "",
+    "rune_stone": "",
 }
 ITEM_NAMES: dict[str, str] = {
     "slime_goo": "Слизь слайма",
@@ -106,7 +106,7 @@ class InventoryPanel:
                 if count <= 0:
                     continue
                 if y_off + ITEM_H > PANEL_H - PADDING:
-                    more = self._font_hint.render("▼ ещё предметы...", True, C_DIM)
+                    more = self._font_hint.render("ещё предметы...", True, C_DIM)
                     surf.blit(more, (PADDING, PANEL_H - PADDING - 18))
                     break
 
@@ -116,7 +116,7 @@ class InventoryPanel:
                 pygame.draw.rect(surf, (50, 48, 38), item_rect, width=1, border_radius=6)
 
                 # Иконка
-                icon = ITEM_ICONS.get(item_name, "📦")
+                icon = ITEM_ICONS.get(item_name, "")
                 icon_s = self._font_count.render(icon, True, C_ICON)
                 surf.blit(icon_s, (PADDING + 8, y_off + (ITEM_H - 4) // 2 - icon_s.get_height() // 2))
 
