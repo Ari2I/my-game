@@ -13,15 +13,15 @@ core/pause_menu.py — экран паузы.
 import pygame
 
 # ─── Цветовая палитра (та же что в menu.py) ───────────────────────────────────
-DARK_BG      = (15,  17,  26)
-PANEL_BG     = (24,  28,  44)
-ACCENT       = (180, 140,  70)
-ACCENT_HOVER = (220, 180,  90)
-TEXT_MAIN    = (220, 210, 190)
-TEXT_DIM     = (110, 100,  85)
-BORDER       = ( 60,  55,  40)
-RED_EXIT     = (160,  50,  50)
-RED_EXIT_HOV = (200,  70,  70)
+DARK_BG = (15, 17, 26)
+PANEL_BG = (24, 28, 44)
+ACCENT = (180, 140, 70)
+ACCENT_HOVER = (220, 180, 90)
+TEXT_MAIN = (220, 210, 190)
+TEXT_DIM = (110, 100, 85)
+BORDER = (60, 55, 40)
+RED_EXIT = (160, 50, 50)
+RED_EXIT_HOV = (200, 70, 70)
 
 # Полупрозрачный оверлей поверх игры
 OVERLAY_COLOR = (0, 0, 0, 160)
@@ -32,13 +32,13 @@ class _Button:
 
     def __init__(self, rect, label, color_normal, color_hover, font,
                  text_color=TEXT_MAIN):
-        self.rect         = pygame.Rect(rect)
-        self.label        = label
+        self.rect = pygame.Rect(rect)
+        self.label = label
         self.color_normal = color_normal
-        self.color_hover  = color_hover
-        self.font         = font
-        self.text_color   = text_color
-        self.hovered      = False
+        self.color_hover = color_hover
+        self.font = font
+        self.text_color = text_color
+        self.hovered = False
 
     def draw(self, surface):
         color = self.color_hover if self.hovered else self.color_normal
@@ -79,20 +79,20 @@ class PauseMenu:
         cx = W // 2
 
         font_title = pygame.font.SysFont(None, 46)
-        font_body  = pygame.font.SysFont(None, 30)
+        font_body = pygame.font.SysFont(None, 30)
 
         self._font_title = font_title
-        self._font_body  = font_body
+        self._font_body = font_body
 
         # Центр панели
         bw, bh, gap = 260, 50, 12
         start_y = H // 2 - 60
 
         defs = [
-            ("▶  Продолжить",   PANEL_BG, ACCENT,    "resume"),
-            ("⚙  Настройки",    PANEL_BG, ACCENT,    "settings"),
-            ("🏠  Главное меню", PANEL_BG, ACCENT,    "menu"),
-            ("✕  Выход",         PANEL_BG, RED_EXIT,  "quit"),
+            ("▶  Продолжить", PANEL_BG, ACCENT, "resume"),
+            ("⚙  Настройки", PANEL_BG, ACCENT, "settings"),
+            ("🏠  Главное меню", PANEL_BG, ACCENT, "menu"),
+            ("✕  Выход", PANEL_BG, RED_EXIT, "quit"),
         ]
         self._buttons: list[tuple[_Button, str]] = []
         for i, (label, cn, ch, action) in enumerate(defs):
@@ -144,8 +144,8 @@ class PauseMenu:
         self.screen.blit(self._overlay, (0, 0))
 
         # Панель
-        pygame.draw.rect(self.screen, PANEL_BG,  self._panel_rect, border_radius=12)
-        pygame.draw.rect(self.screen, BORDER,     self._panel_rect, width=1, border_radius=12)
+        pygame.draw.rect(self.screen, PANEL_BG, self._panel_rect, border_radius=12)
+        pygame.draw.rect(self.screen, BORDER, self._panel_rect, width=1, border_radius=12)
 
         # Заголовок «ПАУЗА»
         title = self._font_title.render("⏸  ПАУЗА", True, ACCENT)
@@ -155,7 +155,7 @@ class PauseMenu:
         ))
 
         # Разделитель
-        lx = self._panel_rect.left  + 20
+        lx = self._panel_rect.left + 20
         rx = self._panel_rect.right - 20
         pygame.draw.line(self.screen, BORDER,
                          (lx, self._panel_rect.top + 68),

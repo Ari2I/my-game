@@ -12,34 +12,34 @@ core/inventory_ui.py — панель инвентаря игрока.
 import pygame
 
 # ─── Цвета ────────────────────────────────────────────────────────────────────
-C_BG        = (18,  22,  35, 230)
-C_BORDER    = (60,  55,  40, 255)
-C_TITLE     = (180, 140,  70)
-C_ITEM_BG   = (28,  34,  50)
-C_ITEM_HOV  = (40,  50,  75)
-C_TEXT      = (220, 210, 190)
-C_DIM       = (110, 100,  85)
-C_ICON      = (120, 200,  80)
+C_BG = (18, 22, 35, 230)
+C_BORDER = (60, 55, 40, 255)
+C_TITLE = (180, 140, 70)
+C_ITEM_BG = (28, 34, 50)
+C_ITEM_HOV = (40, 50, 75)
+C_TEXT = (220, 210, 190)
+C_DIM = (110, 100, 85)
+C_ICON = (120, 200, 80)
 
 # ─── Константы иконок предметов ──────────────────────────────────────────────
 ITEM_ICONS: dict[str, str] = {
-    "slime_goo":      "🟢",
+    "slime_goo": "🟢",
     "rare_slime_goo": "💚",
-    "magic_shard":    "🔷",
-    "rune_stone":     "🔮",
+    "magic_shard": "🔷",
+    "rune_stone": "🔮",
 }
 ITEM_NAMES: dict[str, str] = {
-    "slime_goo":      "Слизь слайма",
+    "slime_goo": "Слизь слайма",
     "rare_slime_goo": "Редкая слизь",
-    "magic_shard":    "Магический осколок",
-    "rune_stone":     "Рунный камень",
+    "magic_shard": "Магический осколок",
+    "rune_stone": "Рунный камень",
 }
 
 # ─── Размеры панели ───────────────────────────────────────────────────────────
-PANEL_W  = 420
-PANEL_H  = 480
-ITEM_H   = 52
-PADDING  = 16
+PANEL_W = 420
+PANEL_H = 480
+ITEM_H = 52
+PADDING = 16
 
 
 class InventoryPanel:
@@ -60,13 +60,13 @@ class InventoryPanel:
         self._y = 20
         self._rect = pygame.Rect(self._x, self._y, PANEL_W, PANEL_H)
 
-        self._font_title  = pygame.font.SysFont(None, 30)
-        self._font_item   = pygame.font.SysFont(None, 24)
-        self._font_count  = pygame.font.SysFont(None, 28)
-        self._font_hint   = pygame.font.SysFont(None, 20)
+        self._font_title = pygame.font.SysFont(None, 30)
+        self._font_item = pygame.font.SysFont(None, 24)
+        self._font_count = pygame.font.SysFont(None, 28)
+        self._font_hint = pygame.font.SysFont(None, 20)
 
-        self._panel_surf  = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
-        self._scroll      = 0   # для будущего скролла
+        self._panel_surf = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
+        self._scroll = 0  # для будущего скролла
 
     def toggle(self):
         self.visible = not self.visible
@@ -83,12 +83,12 @@ class InventoryPanel:
         surf.fill((0, 0, 0, 0))
 
         # Фон
-        pygame.draw.rect(surf, C_BG,     (0, 0, PANEL_W, PANEL_H), border_radius=10)
+        pygame.draw.rect(surf, C_BG, (0, 0, PANEL_W, PANEL_H), border_radius=10)
         pygame.draw.rect(surf, C_BORDER, (0, 0, PANEL_W, PANEL_H),
                          width=1, border_radius=10)
 
         # Заголовок
-        title = self._font_title.render("🎒  Инвентарь", True, C_TITLE)
+        title = self._font_title.render("Инвентарь", True, C_TITLE)
         surf.blit(title, (PADDING, PADDING))
         pygame.draw.line(surf, (60, 55, 40),
                          (PADDING, PADDING + 32),
@@ -150,9 +150,9 @@ class InventoryPanel:
     def _item_description(item_name: str) -> str:
         """Краткое описание предмета для отображения в панели."""
         descriptions = {
-            "slime_goo":      "Выпадает из слаймов. Используется в крафте.",
+            "slime_goo": "Выпадает из слаймов. Используется в крафте.",
             "rare_slime_goo": "Редкий материал. Ценится у алхимиков.",
-            "magic_shard":    "Осколок магического кристалла.",
-            "rune_stone":     "Древний камень с рунической надписью.",
+            "magic_shard": "Осколок магического кристалла.",
+            "rune_stone": "Древний камень с рунической надписью.",
         }
         return descriptions.get(item_name, "Неизвестный предмет.")

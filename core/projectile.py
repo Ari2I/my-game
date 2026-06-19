@@ -7,10 +7,9 @@ core/projectile.py — снаряды дальних врагов.
 
 import math
 
-
 # ─── Константы снаряда ────────────────────────────────────────────────────────
-PROJECTILE_RADIUS   = 6      # визуальный радиус, пикселей
-PROJECTILE_LIFETIME = 4.0    # максимальное время жизни, секунд
+PROJECTILE_RADIUS = 6  # визуальный радиус, пикселей
+PROJECTILE_LIFETIME = 4.0  # максимальное время жизни, секунд
 
 
 class Projectile:
@@ -28,13 +27,13 @@ class Projectile:
 
     def __init__(self, x: float, y: float, vx: float, vy: float,
                  damage: float, owner_wave: int = 1):
-        self.x      = float(x)
-        self.y      = float(y)
-        self.vx     = float(vx)
-        self.vy     = float(vy)
+        self.x = float(x)
+        self.y = float(y)
+        self.vx = float(vx)
+        self.vy = float(vy)
         self.damage = float(damage)
-        self.alive  = True
-        self.wave   = owner_wave
+        self.alive = True
+        self.wave = owner_wave
 
         self._lifetime: float = 0.0
 

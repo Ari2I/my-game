@@ -7,12 +7,14 @@ pygame.Rect не требует инициализации дисплея — т
 
 import sys
 import os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
+
 pygame.init()
 
 import pytest
@@ -25,7 +27,7 @@ class MockPlayer:
     """Минимальный mock игрока с hitbox и take_damage."""
 
     def __init__(self, x: float = 0, y: float = 0):
-        self.hitbox    = pygame.Rect(int(x) - 14, int(y) - 14, 28, 28)
+        self.hitbox = pygame.Rect(int(x) - 14, int(y) - 14, 28, 28)
         self._damage_taken: list[float] = []
         self._iframe_cd: float = 0.0
 
@@ -51,8 +53,8 @@ def make_slime(x=500.0, y=500.0, wave=1) -> Slime:
     return Slime(x, y, wave=wave)
 
 
-MAP_W, MAP_H = 10000, 10000   # большая карта — слайм не упрётся в стену
-DT = 1.0                       # 1 тик = 1/60 секунды
+MAP_W, MAP_H = 10000, 10000  # большая карта — слайм не упрётся в стену
+DT = 1.0  # 1 тик = 1/60 секунды
 
 
 # ─── Тесты начального состояния ──────────────────────────────────────────────
@@ -94,7 +96,7 @@ class TestSlimeFSMTransitions:
 
     def test_switches_to_approach_when_player_in_detect_range(self):
         """Слайм переходит в APPROACH когда игрок в DETECT_RANGE."""
-        slime  = make_slime(x=500, y=500)
+        slime = make_slime(x=500, y=500)
         player = MockPlayer(x=500 + DETECT_RANGE - 10, y=500)
 
         # Несколько тиков чтобы FSM успела среагировать
@@ -103,7 +105,7 @@ class TestSlimeFSMTransitions:
 
     def test_stays_wander_when_player_far(self):
         """Слайм остаётся в WANDER когда игрок за пределами DETECT_RANGE."""
-        slime  = make_slime(x=500, y=500)
+        slime = make_slime(x=500, y=500)
         player = MockPlayer(x=500 + DETECT_RANGE + 100, y=500)
 
         self._tick(slime, player, n=10)
@@ -111,7 +113,7 @@ class TestSlimeFSMTransitions:
 
     def test_enters_prepare_when_very_close(self):
         """Слайм переходит в PREPARE при расстоянии <= PREPARE_RANGE."""
-        slime  = make_slime(x=500, y=500)
+        slime = make_slime(x=500, y=500)
         # Ставим игрока почти вплотную
         player = MockPlayer(x=500 + PREPARE_RANGE - 5, y=500)
 
@@ -122,7 +124,7 @@ class TestSlimeFSMTransitions:
 
     def test_wander_resumes_when_player_leaves(self):
         """Слайм возвращается в WANDER если игрок уходит далеко."""
-        slime  = make_slime(x=500, y=500)
+        slime = make_slime(x=500, y=500)
         player = MockPlayer(x=500 + DETECT_RANGE - 50, y=500)
 
         # Сначала замечаем игрока
@@ -227,8 +229,8 @@ class TestSlimeSeparation:
     def test_slimes_separate_when_overlapping(self):
         """Два перекрывающихся слайма расходятся после update."""
         s1 = make_slime(x=500, y=500)
-        s2 = make_slime(x=505, y=500)   # почти на одном месте
-        player = MockPlayer(x=9000, y=9000)   # далеко
+        s2 = make_slime(x=505, y=500)  # почти на одном месте
+        player = MockPlayer(x=9000, y=9000)  # далеко
 
         # Несколько тиков
         for _ in range(10):

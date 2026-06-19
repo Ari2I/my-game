@@ -25,7 +25,6 @@ import pytmx
 import xml.etree.ElementTree as ET
 from typing import Optional
 
-
 # ─── Слои, считающиеся «непроходимыми» по умолчанию ──────────────────────────
 # Добавь сюда имена слоёв из своего .tmx, которые должны блокировать движение.
 SOLID_LAYER_NAMES: set[str] = {
@@ -33,7 +32,7 @@ SOLID_LAYER_NAMES: set[str] = {
     "elevated_space2",
     "elevated_space3",
     "elevated_space_corners",
-    "bridges",      # мосты — проходимы поверх воды, но блокируют сбоку
+    "bridges",  # мосты — проходимы поверх воды, но блокируют сбоку
 }
 
 # GID-диапазоны тайлсетов, которые всегда solid
@@ -75,7 +74,7 @@ class WallMap:
         self._tile_w = tile_w
         self._tile_h = tile_h
         self._solid_layers = solid_layers if solid_layers is not None else SOLID_LAYER_NAMES
-        self._solid_gid    = solid_gid_ranges if solid_gid_ranges is not None else SOLID_GID_RANGES
+        self._solid_gid = solid_gid_ranges if solid_gid_ranges is not None else SOLID_GID_RANGES
         self._filename = filename
 
         self.walls: list[WallTile | WallPolygon] = []
@@ -190,14 +189,14 @@ class WallMap:
 
     def _index(self):
         for w in self.walls:
-            bx0, by0 = self._bucket(w.rect.left,  w.rect.top)
+            bx0, by0 = self._bucket(w.rect.left, w.rect.top)
             bx1, by1 = self._bucket(w.rect.right, w.rect.bottom)
             for bx in range(bx0, bx1 + 1):
                 for by in range(by0, by1 + 1):
                     self._grid.setdefault((bx, by), []).append(w)
 
     def _nearby(self, rect: pygame.Rect) -> list[WallTile | WallPolygon]:
-        bx0, by0 = self._bucket(rect.left,  rect.top)
+        bx0, by0 = self._bucket(rect.left, rect.top)
         bx1, by1 = self._bucket(rect.right, rect.bottom)
         seen: set[int] = set()
         result: list[WallTile | WallPolygon] = []
@@ -314,13 +313,13 @@ class WallMap:
                 continue
 
             # Перекрытия по каждой оси
-            over_x_left  = rect.right  - w.rect.left
-            over_x_right = w.rect.right  - rect.left
-            over_y_up    = rect.bottom - w.rect.top
-            over_y_down  = w.rect.bottom - rect.top
+            over_x_left = rect.right - w.rect.left
+            over_x_right = w.rect.right - rect.left
+            over_y_up = rect.bottom - w.rect.top
+            over_y_down = w.rect.bottom - rect.top
 
-            ox = over_x_left  if over_x_left  < over_x_right  else -over_x_right
-            oy = over_y_up    if over_y_up     < over_y_down   else -over_y_down
+            ox = over_x_left if over_x_left < over_x_right else -over_x_right
+            oy = over_y_up if over_y_up < over_y_down else -over_y_down
 
             # Толкаем по оси с меньшим перекрытием
             if abs(ox) < abs(oy):

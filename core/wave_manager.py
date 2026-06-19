@@ -6,14 +6,13 @@ core/wave_manager.py — управление волнами врагов.
 после чего начинается следующая с большим числом/силой врагов.
 """
 
-
 # ─── Константы волн ───────────────────────────────────────────────────────────
-WAVE_START_DELAY    = 3.0   # секунд паузы перед началом волны
-WAVE_TIMEOUT        = 120.0 # секунд до принудительной смены волны
-SLIMES_PER_WAVE     = 5     # базовое число слаймов в волне
-RANGED_PER_WAVE     = 2     # базовое число дальних врагов в волне
-SLIME_SCALE_PER_WAVE  = 2   # +N слаймов за каждую волну
-RANGED_SCALE_PER_WAVE = 1   # +N дальних врагов за каждую волну
+WAVE_START_DELAY = 3.0  # секунд паузы перед началом волны
+WAVE_TIMEOUT = 120.0  # секунд до принудительной смены волны
+SLIMES_PER_WAVE = 5  # базовое число слаймов в волне
+RANGED_PER_WAVE = 2  # базовое число дальних врагов в волне
+SLIME_SCALE_PER_WAVE = 2  # +N слаймов за каждую волну
+RANGED_SCALE_PER_WAVE = 1  # +N дальних врагов за каждую волну
 
 
 class WaveManager:
@@ -33,13 +32,13 @@ class WaveManager:
     """
 
     def __init__(self, slime_manager, ranged_manager):
-        self.slime_mgr  = slime_manager
+        self.slime_mgr = slime_manager
         self.ranged_mgr = ranged_manager
 
-        self.current_wave: int = 0       # 0 = волна ещё не начиналась
-        self._timer: float     = 0.0
-        self._state: str       = "delay" # "delay" | "active"
-        self._spawned: bool    = False
+        self.current_wave: int = 0  # 0 = волна ещё не начиналась
+        self._timer: float = 0.0
+        self._state: str = "delay"  # "delay" | "active"
+        self._spawned: bool = False
 
     # ── обновление ────────────────────────────────────────────────────────────
     def update(self, dt: float):
@@ -66,8 +65,8 @@ class WaveManager:
         self._timer = 0.0
         self._state = "active"
 
-        slime_count  = SLIMES_PER_WAVE  + (self.current_wave - 1) * SLIME_SCALE_PER_WAVE
-        ranged_count = RANGED_PER_WAVE  + (self.current_wave - 1) * RANGED_SCALE_PER_WAVE
+        slime_count = SLIMES_PER_WAVE + (self.current_wave - 1) * SLIME_SCALE_PER_WAVE
+        ranged_count = RANGED_PER_WAVE + (self.current_wave - 1) * RANGED_SCALE_PER_WAVE
 
         self.slime_mgr.spawn_wave(wave=self.current_wave, count=slime_count)
         self.ranged_mgr.spawn_wave(wave=self.current_wave, count=ranged_count)

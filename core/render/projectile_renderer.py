@@ -7,11 +7,10 @@ core/render/projectile_renderer.py — отрисовка снарядов (View
 import math
 import pygame
 
-
 # ─── Цвета ────────────────────────────────────────────────────────────────────
-C_PROJ_CORE  = (255, 120,  40)   # оранжевое ядро
-C_PROJ_GLOW  = (255, 200,  80)   # жёлтое свечение
-C_PROJ_TRAIL = (180,  60,  20)   # тёмный след
+C_PROJ_CORE = (255, 120, 40)  # оранжевое ядро
+C_PROJ_GLOW = (255, 200, 80)  # жёлтое свечение
+C_PROJ_TRAIL = (180, 60, 20)  # тёмный след
 
 
 class ProjectileRenderer:
@@ -23,17 +22,17 @@ class ProjectileRenderer:
 
         sx = int(projectile.x) - camera_x
         sy = int(projectile.y) - camera_y
-        r  = projectile.RADIUS
+        r = projectile.RADIUS
 
         # Небольшой след (3 точки позади)
-        speed  = math.hypot(projectile.vx, projectile.vy)
+        speed = math.hypot(projectile.vx, projectile.vy)
         if speed > 0:
             dx = projectile.vx / speed
             dy = projectile.vy / speed
             for i in range(1, 4):
                 trail_x = sx - int(dx * i * 4)
                 trail_y = sy - int(dy * i * 4)
-                alpha   = max(0, 180 - i * 55)
+                alpha = max(0, 180 - i * 55)
                 trail_r = max(1, r - i)
                 trail_s = pygame.Surface((trail_r * 2 + 2, trail_r * 2 + 2), pygame.SRCALPHA)
                 pygame.draw.circle(trail_s, (*C_PROJ_TRAIL, alpha),

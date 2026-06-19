@@ -27,23 +27,23 @@ import pygame
 STORY_FILE = os.path.join("data", "story.json")
 
 # ─── Цвета ────────────────────────────────────────────────────────────────────
-C_BG        = (10,  12,  20)
-C_TITLE     = (180, 140,  70)
-C_HEADING   = (220, 200, 140)
-C_TEXT      = (190, 185, 170)
-C_PROMPT    = (100,  95,  80)
-C_STAR      = (150, 145, 130)
+C_BG = (10, 12, 20)
+C_TITLE = (180, 140, 70)
+C_HEADING = (220, 200, 140)
+C_TEXT = (190, 185, 170)
+C_PROMPT = (100, 95, 80)
+C_STAR = (150, 145, 130)
 
 # ─── Параметры анимации ───────────────────────────────────────────────────────
-SLIDE_FADE_MS  = 600    # мс на fade-in слайда
-SLIDE_HOLD_MS  = 3500   # мс показа слайда
-AUTO_ADVANCE   = True   # автоматический переход между слайдами
+SLIDE_FADE_MS = 600  # мс на fade-in слайда
+SLIDE_HOLD_MS = 3500  # мс показа слайда
+AUTO_ADVANCE = True  # автоматический переход между слайдами
 
 
 def _wrap_text(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
     """Переносит длинный текст по словам, возвращает список строк."""
-    words  = text.split()
-    lines  = []
+    words = text.split()
+    lines = []
     current = ""
     for word in words:
         test = (current + " " + word).strip()
@@ -69,17 +69,17 @@ class IntroScreen:
 
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
-        self.clock  = pygame.time.Clock()
-        self._data  = self._load_story()
+        self.clock = pygame.time.Clock()
+        self._data = self._load_story()
 
         W, H = screen.get_size()
         self._W = W
         self._H = H
 
-        self._font_title   = pygame.font.SysFont(None, 52)
+        self._font_title = pygame.font.SysFont(None, 52)
         self._font_heading = pygame.font.SysFont(None, 36)
-        self._font_body    = pygame.font.SysFont(None, 27)
-        self._font_prompt  = pygame.font.SysFont(None, 22)
+        self._font_body = pygame.font.SysFont(None, 27)
+        self._font_prompt = pygame.font.SysFont(None, 22)
 
         # Декоративные звёзды
         import random
@@ -107,8 +107,8 @@ class IntroScreen:
     # ── основной цикл ─────────────────────────────────────────────────────────
     def run(self) -> str:
         """Запускает экран. Возвращает 'done' или 'skip'."""
-        slides      = self._data.get("slides", [])
-        title_text  = self._data.get("title",  "Cursed Land")
+        slides = self._data.get("slides", [])
+        title_text = self._data.get("title", "Cursed Land")
         prompt_text = self._data.get("prompt", "Нажми ПРОБЕЛ")
 
         if not slides:
@@ -134,10 +134,10 @@ class IntroScreen:
 
     def _show_title(self, title: str, prompt: str) -> str:
         """Показывает экран заголовка с fade-in."""
-        alpha    = 0
-        hold_ms  = 0
-        fading   = True
-        done     = False
+        alpha = 0
+        hold_ms = 0
+        fading = True
+        done = False
 
         while not done:
             dt = self.clock.tick(60)
@@ -180,10 +180,10 @@ class IntroScreen:
     def _show_slide(self, heading: str, text: str,
                     prompt: str, is_last: bool) -> str:
         """Показывает один текстовый слайд с fade-in."""
-        alpha   = 0
+        alpha = 0
         hold_ms = 0
-        fading  = True
-        done    = False
+        fading = True
+        done = False
 
         max_text_w = min(900, self._W - 120)
         lines = _wrap_text(text, self._font_body, max_text_w)

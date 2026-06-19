@@ -54,14 +54,14 @@ def roll_loot(table: dict[str, float]) -> str | None:
 
 # Слайм: 70% — слизь, 20% — редкая слизь, 10% — ничего не выпадает
 SLIME_LOOT_TABLE: dict[str, float] = {
-    "slime_goo":      70.0,
+    "slime_goo": 70.0,
     "rare_slime_goo": 20.0,
-    "nothing":        10.0,
+    "nothing": 10.0,
 }
 
 # Дальний враг: 60% — магический осколок, 25% — руна, 15% — ничего
 RANGED_ENEMY_LOOT_TABLE: dict[str, float] = {
     "magic_shard": 60.0,
-    "rune_stone":  25.0,
-    "nothing":     15.0,
+    "rune_stone": 25.0,
+    "nothing": 15.0,
 }

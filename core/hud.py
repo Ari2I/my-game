@@ -15,26 +15,25 @@ core/hud.py — нижняя панель в стиле Dota 2.
 
 import pygame
 
-
 # ── Цвета ─────────────────────────────────────────────────────────────────────
-C_PANEL_BG  = (18,  20,  30, 220)
-C_PANEL_BOR = (60,  55,  40, 255)
-C_HP_FULL   = (60, 180,  80)
-C_HP_LOW    = (200,  55,  50)
-C_HP_BG     = (40,  20,  20)
-C_XP_FILL   = (80, 140, 230)
-C_XP_BG     = (20,  30,  50)
-C_GOLD      = (200, 165,  60)
-C_WHITE     = (220, 210, 190)
-C_DIM       = (110, 100,  85)
-C_GREEN_BTN = (40,  130,  60)
-C_GREEN_HOV = (60,  170,  80)
-C_SLIME     = (120, 200,  80)
+C_PANEL_BG = (18, 20, 30, 220)
+C_PANEL_BOR = (60, 55, 40, 255)
+C_HP_FULL = (60, 180, 80)
+C_HP_LOW = (200, 55, 50)
+C_HP_BG = (40, 20, 20)
+C_XP_FILL = (80, 140, 230)
+C_XP_BG = (20, 30, 50)
+C_GOLD = (200, 165, 60)
+C_WHITE = (220, 210, 190)
+C_DIM = (110, 100, 85)
+C_GREEN_BTN = (40, 130, 60)
+C_GREEN_HOV = (60, 170, 80)
+C_SLIME = (120, 200, 80)
 
 # ── Размеры панели ────────────────────────────────────────────────────────────
 PANEL_H = 110
 PANEL_W = 780
-BAR_H   = 16
+BAR_H = 16
 
 
 class PlusButton:
@@ -43,10 +42,10 @@ class PlusButton:
     SIZE = 20
 
     def __init__(self, x: int, y: int, stat_name: str, font):
-        self.rect      = pygame.Rect(x, y, self.SIZE, self.SIZE)
-        self.stat      = stat_name
-        self.font      = font
-        self.hovered   = False
+        self.rect = pygame.Rect(x, y, self.SIZE, self.SIZE)
+        self.stat = stat_name
+        self.font = font
+        self.hovered = False
 
     def draw(self, surface):
         color = C_GREEN_HOV if self.hovered else C_GREEN_BTN
@@ -86,7 +85,7 @@ class HUD:
         # Кнопки «+» — перестраиваются в _rebuild_plus_buttons()
         # Список хранит объекты с абсолютными экранными координатами
         self._plus_buttons: list[PlusButton] = []
-        self._last_free_points: int = -1    # триггер перестройки кнопок
+        self._last_free_points: int = -1  # триггер перестройки кнопок
 
         self._panel_surf = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
 
@@ -94,8 +93,8 @@ class HUD:
     def _build_fonts(self):
         self.f_label = pygame.font.SysFont(None, 20)
         self.f_value = pygame.font.SysFont(None, 24)
-        self.f_big   = pygame.font.SysFont(None, 28)
-        self.f_lvl   = pygame.font.SysFont(None, 22)
+        self.f_big = pygame.font.SysFont(None, 28)
+        self.f_lvl = pygame.font.SysFont(None, 22)
 
     # ── построение кнопок «+» ─────────────────────────────────────────────────
     def _rebuild_plus_buttons(self, free_points: int, cx2: int, pad_y: int):
@@ -113,8 +112,8 @@ class HUD:
         # Абсолютные координаты кнопок = смещение панели + локальные координаты
         btn_defs = [
             ("vitality", self.px + cx2 + 88, self.py + pad_y + 2 * 20),
-            ("power",    self.px + cx2 + 88, self.py + pad_y + 3 * 20),
-            ("agility",  self.px + cx2 + 88, self.py + pad_y + 4 * 20),
+            ("power", self.px + cx2 + 88, self.py + pad_y + 3 * 20),
+            ("agility", self.px + cx2 + 88, self.py + pad_y + 4 * 20),
         ]
         for stat_name, abs_x, abs_y in btn_defs:
             self._plus_buttons.append(
@@ -151,25 +150,25 @@ class HUD:
         surf.fill((0, 0, 0, 0))
 
         # Фон панели
-        pygame.draw.rect(surf, C_PANEL_BG,  (0, 0, PANEL_W, PANEL_H), border_radius=10)
+        pygame.draw.rect(surf, C_PANEL_BG, (0, 0, PANEL_W, PANEL_H), border_radius=10)
         pygame.draw.rect(surf, C_PANEL_BOR, (0, 0, PANEL_W, PANEL_H),
                          width=1, border_radius=10)
 
-        stats  = player.stats
-        inv    = player.inventory
+        stats = player.stats
+        inv = player.inventory
         max_hp = stats.max_hp()
-        hp     = player.current_hp
-        lvl    = player.level
-        xp     = player.xp
+        hp = player.current_hp
+        lvl = player.level
+        xp = player.xp
         xp_max = player.xp_to_next()
 
         # ── левая колонка: HP ─────────────────────────────────────────────────
         lx, ly = 16, 14
 
-        hp_lbl = self.f_label.render("❤  HP", True, C_WHITE)
+        hp_lbl = self.f_label.render("HP", True, C_WHITE)
         surf.blit(hp_lbl, (lx, ly))
 
-        bar_w    = 200
+        bar_w = 200
         hp_ratio = hp / max_hp if max_hp > 0 else 0
         hp_color = _lerp_color(C_HP_LOW, C_HP_FULL, hp_ratio)
         self._draw_bar(surf, lx, ly + 20, bar_w, BAR_H,
@@ -191,19 +190,19 @@ class HUD:
         surf.blit(xp_num, (mx, ly + 52))
 
         # ── центр: основные статы ─────────────────────────────────────────────
-        cx2   = mx + 160
+        cx2 = mx + 160
         pad_y = 10
 
         stat_lines = [
-            ("⚔  Атака",     f"{stats.damage()}",      C_WHITE),
-            ("👟  Скорость",  f"{stats.speed():.1f}",   C_WHITE),
-            ("❤  Вит.",      f"{stats.vitality}",       C_WHITE),
-            ("⚡  Сила",      f"{stats.power}",           C_WHITE),
-            ("🌿  Ловк.",     f"{stats.agility}",         C_WHITE),
+            ("Атака", f"{stats.damage()}", C_WHITE),
+            ("Скорость", f"{stats.speed():.1f}", C_WHITE),
+            ("Вит.", f"{stats.vitality}", C_WHITE),
+            ("Сила", f"{stats.power}", C_WHITE),
+            ("Ловк.", f"{stats.agility}", C_WHITE),
         ]
         for i, (label, val, col) in enumerate(stat_lines):
             lbl_s = self.f_label.render(label, True, C_DIM)
-            val_s = self.f_value.render(val,   True, col)
+            val_s = self.f_value.render(val, True, col)
             y_row = pad_y + i * 20
             surf.blit(lbl_s, (cx2, y_row))
             surf.blit(val_s, (cx2 + 110, y_row - 1))
@@ -225,7 +224,7 @@ class HUD:
 
         slime_val = self.f_value.render(str(inv.slime_goo), True, C_WHITE)
         slime_lbl = self.f_label.render("Слизь слаймов", True, C_DIM)
-        surf.blit(self.f_value.render("🟢", True, C_SLIME), (rx, 32))
+        surf.blit(self.f_value.render("", True, C_SLIME), (rx, 32))
         surf.blit(slime_val, (rx + 28, 34))
         surf.blit(slime_lbl, (rx, 56))
 
@@ -233,7 +232,7 @@ class HUD:
         y_item = 74
         for item_name, count in inv.items.items():
             if item_name == "slime_goo":
-                continue   # уже показан выше
+                continue  # уже показан выше
             item_s = self.f_label.render(f"{item_name}: {count}", True, C_DIM)
             surf.blit(item_s, (rx, y_item))
             y_item += 16

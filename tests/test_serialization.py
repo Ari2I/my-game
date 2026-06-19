@@ -7,12 +7,14 @@ tests/test_serialization.py — тесты сериализации Stats, Inven
 
 import sys
 import os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
+
 pygame.init()
 
 import json
@@ -29,32 +31,35 @@ class TestStatsSerializaton:
         s = Stats()
         s2 = Stats()
         s2.from_dict(s.to_dict())
-        assert s2.vitality    == 0
-        assert s2.power       == 0
-        assert s2.agility     == 0
+        assert s2.vitality == 0
+        assert s2.power == 0
+        assert s2.agility == 0
         assert s2.free_points == 0
 
     def test_roundtrip_filled(self):
         """Заполненные Stats сохраняются и восстанавливаются без потерь."""
         s = Stats()
-        s.vitality    = 5
-        s.power       = 3
-        s.agility     = 7
+        s.vitality = 5
+        s.power = 3
+        s.agility = 7
         s.free_points = 2
         data = s.to_dict()
 
         s2 = Stats()
         s2.from_dict(data)
-        assert s2.vitality    == 5
-        assert s2.power       == 3
-        assert s2.agility     == 7
+        assert s2.vitality == 5
+        assert s2.power == 3
+        assert s2.agility == 7
         assert s2.free_points == 2
 
     def test_to_dict_is_json_serializable(self):
         """to_dict() возвращает структуру, сериализуемую в JSON."""
         s = Stats()
-        s.vitality = 4; s.power = 2; s.agility = 1; s.free_points = 3
-        raw = json.dumps(s.to_dict())   # не должно бросать исключений
+        s.vitality = 4;
+        s.power = 2;
+        s.agility = 1;
+        s.free_points = 3
+        raw = json.dumps(s.to_dict())  # не должно бросать исключений
         restored = json.loads(raw)
         s2 = Stats()
         s2.from_dict(restored)
@@ -64,21 +69,22 @@ class TestStatsSerializaton:
         """from_dict с частичным словарём — остальные поля == 0."""
         s = Stats()
         s.from_dict({"power": 9})
-        assert s.power       == 9
-        assert s.vitality    == 0
-        assert s.agility     == 0
+        assert s.power == 9
+        assert s.vitality == 0
+        assert s.agility == 0
         assert s.free_points == 0
 
     def test_derived_values_correct_after_restore(self):
         """После восстановления вычисляемые поля (max_hp, damage) корректны."""
         from core.player import BASE_HP, HP_PER_POINT, BASE_DAMAGE, DAMAGE_PER_POINT
         s = Stats()
-        s.vitality = 3; s.power = 4
+        s.vitality = 3;
+        s.power = 4
         data = s.to_dict()
 
         s2 = Stats()
         s2.from_dict(data)
-        assert s2.max_hp() == BASE_HP    + 3 * HP_PER_POINT
+        assert s2.max_hp() == BASE_HP + 3 * HP_PER_POINT
         assert s2.damage() == BASE_DAMAGE + 4 * DAMAGE_PER_POINT
 
 
@@ -96,16 +102,16 @@ class TestInventorySerialization:
     def test_roundtrip_multiple_items(self):
         """Несколько предметов сохраняются и восстанавливаются корректно."""
         inv = Inventory()
-        inv.add_item("slime_goo",   5)
+        inv.add_item("slime_goo", 5)
         inv.add_item("magic_shard", 2)
-        inv.add_item("rune_stone",  1)
+        inv.add_item("rune_stone", 1)
         data = inv.to_dict()
 
         inv2 = Inventory()
         inv2.from_dict(data)
-        assert inv2.get_item("slime_goo")   == 5
+        assert inv2.get_item("slime_goo") == 5
         assert inv2.get_item("magic_shard") == 2
-        assert inv2.get_item("rune_stone")  == 1
+        assert inv2.get_item("rune_stone") == 1
 
     def test_to_dict_is_json_serializable(self):
         """to_dict() возвращает JSON-сериализуемую структуру."""
@@ -154,8 +160,10 @@ class TestCombinedSerialization:
                    free=0, items=None) -> dict:
         """Создаёт словарь сохранения как это делает Player.to_dict."""
         s = Stats()
-        s.vitality = vitality; s.power = power
-        s.agility  = agility;  s.free_points = free
+        s.vitality = vitality;
+        s.power = power
+        s.agility = agility;
+        s.free_points = free
 
         inv = Inventory()
         for name, count in (items or {}).items():
@@ -165,7 +173,7 @@ class TestCombinedSerialization:
             "x": 100.0, "y": 200.0,
             "level": 3, "xp": 75,
             "current_hp": 80.0,
-            "stats":     s.to_dict(),
+            "stats": s.to_dict(),
             "inventory": inv.to_dict(),
         }
 
@@ -182,19 +190,19 @@ class TestCombinedSerialization:
         s2 = Stats()
         s2.from_dict(data["stats"])
         assert s2.vitality == 4
-        assert s2.power    == 2
-        assert s2.agility  == 1
+        assert s2.power == 2
+        assert s2.agility == 1
         assert s2.free_points == 3
 
         # Восстанавливаем Inventory
         inv2 = Inventory()
         inv2.from_dict(data["inventory"])
-        assert inv2.get_item("slime_goo")   == 5
+        assert inv2.get_item("slime_goo") == 5
         assert inv2.get_item("magic_shard") == 1
 
         # Прочие поля
         assert data["level"] == 3
-        assert data["xp"]    == 75
+        assert data["xp"] == 75
         assert abs(data["current_hp"] - 80.0) < 1e-9
 
     def test_save_is_stable_under_multiple_roundtrips(self):

@@ -17,38 +17,37 @@ import math
 import random
 import pygame
 
-from core.enemy      import Enemy, EnemyManager
+from core.enemy import Enemy, EnemyManager
 from core.projectile import Projectile
-from core.loot       import roll_loot, RANGED_ENEMY_LOOT_TABLE
-
+from core.loot import roll_loot, RANGED_ENEMY_LOOT_TABLE
 
 # ─── Константы дальнего врага ─────────────────────────────────────────────────
-RANGED_BASE_HP        = 45
-RANGED_BASE_SPEED     = 1.1
-RANGED_BASE_DAMAGE    = 8       # урон снаряда
-RANGED_XP_REWARD      = 40
+RANGED_BASE_HP = 45
+RANGED_BASE_SPEED = 1.1
+RANGED_BASE_DAMAGE = 8  # урон снаряда
+RANGED_XP_REWARD = 40
 
-MIN_DISTANCE          = 200     # минимальная дистанция до игрока (отступает если ближе)
-IDEAL_DISTANCE        = 320     # идеальная дистанция для стрельбы
-MAX_DISTANCE          = 480     # дальше этого — начинает сближаться
+MIN_DISTANCE = 200  # минимальная дистанция до игрока (отступает если ближе)
+IDEAL_DISTANCE = 320  # идеальная дистанция для стрельбы
+MAX_DISTANCE = 480  # дальше этого — начинает сближаться
 
-SHOOT_COOLDOWN        = 2.2     # секунд между выстрелами
-AIM_TIME              = 0.6     # секунд прицеливания перед выстрелом
-STUN_TIME             = 0.4     # секунд оглушения
-FLEE_TIME             = 0.8     # секунд бегства при слишком близком игроке
+SHOOT_COOLDOWN = 2.2  # секунд между выстрелами
+AIM_TIME = 0.6  # секунд прицеливания перед выстрелом
+STUN_TIME = 0.4  # секунд оглушения
+FLEE_TIME = 0.8  # секунд бегства при слишком близком игроке
 
-PROJECTILE_SPEED      = 4.5     # скорость снаряда (в тиках)
-STRAFE_AMPLITUDE      = 1.0     # амплитуда бокового движения при REPOSITION
+PROJECTILE_SPEED = 4.5  # скорость снаряда (в тиках)
+STRAFE_AMPLITUDE = 1.0  # амплитуда бокового движения при REPOSITION
 
 
 class RangedState:
-    PATROL      = "patrol"      # медленное патрулирование на краях карты
-    REPOSITION  = "reposition"  # движение к идеальной дистанции
-    AIM         = "aim"         # прицеливание (короткая остановка)
-    SHOOT       = "shoot"       # выстрел
-    FLEE        = "flee"        # бегство если игрок слишком близко
-    STUNNED     = "stunned"     # оглушение после удара
-    DEAD        = "dead"
+    PATROL = "patrol"  # медленное патрулирование на краях карты
+    REPOSITION = "reposition"  # движение к идеальной дистанции
+    AIM = "aim"  # прицеливание (короткая остановка)
+    SHOOT = "shoot"  # выстрел
+    FLEE = "flee"  # бегство если игрок слишком близко
+    STUNNED = "stunned"  # оглушение после удара
+    DEAD = "dead"
 
 
 class RangedEnemy(Enemy):
@@ -69,8 +68,8 @@ class RangedEnemy(Enemy):
 
         super().__init__(
             x=x, y=y, wave=wave,
-            max_hp=RANGED_BASE_HP   * scale,
-            speed =RANGED_BASE_SPEED * (1.0 + (wave - 1) * 0.06),
+            max_hp=RANGED_BASE_HP * scale,
+            speed=RANGED_BASE_SPEED * (1.0 + (wave - 1) * 0.06),
             damage=RANGED_BASE_DAMAGE * scale,
         )
 
@@ -78,21 +77,21 @@ class RangedEnemy(Enemy):
         self._attack_cd = random.uniform(0, SHOOT_COOLDOWN)
 
         # Направление патруля
-        angle              = random.uniform(0, math.pi * 2)
-        self._patrol_dx    = math.cos(angle)
-        self._patrol_dy    = math.sin(angle)
+        angle = random.uniform(0, math.pi * 2)
+        self._patrol_dx = math.cos(angle)
+        self._patrol_dy = math.sin(angle)
         self._patrol_timer = random.uniform(1.0, 3.0)
 
         # Боковое маневрирование (strafe)
-        self._strafe_dir   = random.choice([-1, 1])
+        self._strafe_dir = random.choice([-1, 1])
         self._strafe_timer = 0.0
 
         # Список снарядов — заполняется при выстреле, читается main.py
         self.projectiles: list[Projectile] = []
 
         # Визуал
-        self._hit_flash    = 0.0
-        self._aim_progress = 0.0   # [0..1], для рендерера (анимация прицела)
+        self._hit_flash = 0.0
+        self._aim_progress = 0.0  # [0..1], для рендерера (анимация прицела)
 
     # ── публичные свойства для рендерера ─────────────────────────────────────
     @property
@@ -116,7 +115,7 @@ class RangedEnemy(Enemy):
         if self.state not in (RangedState.DEAD, RangedState.STUNNED):
             self._enter(RangedState.STUNNED)
         if self.hp <= 0:
-            self.hp    = 0
+            self.hp = 0
             self.alive = False
             self.state = RangedState.DEAD
 
@@ -133,12 +132,18 @@ class RangedEnemy(Enemy):
         self._hit_flash = max(0.0, self._hit_flash - dt_sec)
         self._attack_cd = max(0.0, self._attack_cd - dt_sec)
 
-        if   self.state == RangedState.STUNNED:    self._do_stunned(dt_sec, dist)
-        elif self.state == RangedState.FLEE:        self._do_flee(dt, dt_sec, pdx, pdy, dist)
-        elif self.state == RangedState.PATROL:      self._do_patrol(dt_sec, dist)
-        elif self.state == RangedState.REPOSITION:  self._do_reposition(dt, dt_sec, pdx, pdy, dist)
-        elif self.state == RangedState.AIM:         self._do_aim(dt_sec, pdx, pdy, dist, player)
-        elif self.state == RangedState.SHOOT:       self._do_shoot(pdx, pdy, dist)
+        if self.state == RangedState.STUNNED:
+            self._do_stunned(dt_sec, dist)
+        elif self.state == RangedState.FLEE:
+            self._do_flee(dt, dt_sec, pdx, pdy, dist)
+        elif self.state == RangedState.PATROL:
+            self._do_patrol(dt_sec, dist)
+        elif self.state == RangedState.REPOSITION:
+            self._do_reposition(dt, dt_sec, pdx, pdy, dist)
+        elif self.state == RangedState.AIM:
+            self._do_aim(dt_sec, pdx, pdy, dist, player)
+        elif self.state == RangedState.SHOOT:
+            self._do_shoot(pdx, pdy, dist)
 
     def _do_stunned(self, dt_sec: float, dist: float):
         self.vx *= 0.70
@@ -164,8 +169,8 @@ class RangedEnemy(Enemy):
         if self._patrol_timer <= 0:
             import random
             a = random.uniform(0, math.pi * 2)
-            self._patrol_dx    = math.cos(a)
-            self._patrol_dy    = math.sin(a)
+            self._patrol_dx = math.cos(a)
+            self._patrol_dy = math.sin(a)
             self._patrol_timer = random.uniform(1.5, 3.5)
 
         self.vx = self._patrol_dx * self.speed * 0.4
@@ -200,12 +205,12 @@ class RangedEnemy(Enemy):
             # Боковая компонента: strafe (перпендикуляр к вектору на игрока)
             self._strafe_timer += dt_sec
             if self._strafe_timer > 2.0:
-                self._strafe_dir   = -self._strafe_dir
+                self._strafe_dir = -self._strafe_dir
                 self._strafe_timer = 0.0
 
             # Перпендикуляр: (-ny, nx) или (ny, -nx)
             perp_x = -ny * self._strafe_dir
-            perp_y =  nx * self._strafe_dir
+            perp_y = nx * self._strafe_dir
 
             spd = self.speed
             self.vx = (nx * longitudinal * spd + perp_x * STRAFE_AMPLITUDE * spd)

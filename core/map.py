@@ -9,6 +9,7 @@ def get_content_bounds(tmx_data, tile_w, tile_h):
 
     Если карта полностью пуста — возвращает границы по номинальному размеру.
     """
+
     def iter_layers(layers):
         for layer in layers:
             if isinstance(layer, pytmx.TiledTileLayer):

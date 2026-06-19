@@ -3,30 +3,29 @@ import json
 import os
 import sys
 
-
 # ─── Цветовая палитра ──────────────────────────────────────────────────────────
-DARK_BG      = (15,  17,  26)   # почти чёрный, чуть синеватый
-PANEL_BG     = (24,  28,  44)   # тёмно-синяя панель
-ACCENT       = (180, 140,  70)  # старое золото — как рунные надписи
-ACCENT_HOVER = (220, 180,  90)  # яркое золото при наведении
-TEXT_MAIN    = (220, 210, 190)  # пергаментный белый
-TEXT_DIM     = (110, 100,  85)  # приглушённый текст
-BORDER       = ( 60,  55,  40)  # тёмная рамка
-SEPARATOR    = ( 40,  38,  30)  # разделитель
-RED_EXIT     = (160,  50,  50)
-RED_EXIT_HOV = (200,  70,  70)
+DARK_BG = (15, 17, 26)  # почти чёрный, чуть синеватый
+PANEL_BG = (24, 28, 44)  # тёмно-синяя панель
+ACCENT = (180, 140, 70)  # старое золото — как рунные надписи
+ACCENT_HOVER = (220, 180, 90)  # яркое золото при наведении
+TEXT_MAIN = (220, 210, 190)  # пергаментный белый
+TEXT_DIM = (110, 100, 85)  # приглушённый текст
+BORDER = (60, 55, 40)  # тёмная рамка
+SEPARATOR = (40, 38, 30)  # разделитель
+RED_EXIT = (160, 50, 50)
+RED_EXIT_HOV = (200, 70, 70)
 
 
 # ─── Вспомогательный класс кнопки ─────────────────────────────────────────────
 class Button:
     def __init__(self, rect, label, color_normal, color_hover, font, text_color=TEXT_MAIN):
-        self.rect         = pygame.Rect(rect)
-        self.label        = label
+        self.rect = pygame.Rect(rect)
+        self.label = label
         self.color_normal = color_normal
-        self.color_hover  = color_hover
-        self.font         = font
-        self.text_color   = text_color
-        self.hovered      = False
+        self.color_hover = color_hover
+        self.font = font
+        self.text_color = text_color
+        self.hovered = False
 
     def draw(self, surface):
         color = self.color_hover if self.hovered else self.color_normal
@@ -62,7 +61,7 @@ class Slider:
         self.y = y
         self.width = width
         self.label = label
-        self.value = value          # 0.0 – 1.0
+        self.value = value  # 0.0 – 1.0
         self.font = font
         self.track_h = 4
         self.knob_r = 8
@@ -90,12 +89,12 @@ class Slider:
         filled = pygame.Rect(self.x, self.track_rect.y,
                              int(self.value * self.width), self.track_h)
         pygame.draw.rect(surface, SEPARATOR, self.track_rect, border_radius=2)
-        pygame.draw.rect(surface, ACCENT,    filled,          border_radius=2)
+        pygame.draw.rect(surface, ACCENT, filled, border_radius=2)
 
         # ручка
         kx, ky = self.knob_center
-        pygame.draw.circle(surface, PANEL_BG,  (kx, ky), self.knob_r)
-        pygame.draw.circle(surface, ACCENT,    (kx, ky), self.knob_r, 2)
+        pygame.draw.circle(surface, PANEL_BG, (kx, ky), self.knob_r)
+        pygame.draw.circle(surface, ACCENT, (kx, ky), self.knob_r, 2)
 
     def handle_event(self, event):
         kx, ky = self.knob_center
@@ -113,12 +112,12 @@ class Slider:
 # ─── Экран настроек ───────────────────────────────────────────────────────────
 class SettingsScreen:
     RESOLUTIONS = [(1280, 720), (1600, 900), (1920, 1080), (2560, 1440)]
-    LANGUAGES   = ["Русский", "English", "Polski", "Deutsch"]
+    LANGUAGES = ["Русский", "English", "Polski", "Deutsch"]
 
     def __init__(self, screen, fonts, settings):
-        self.screen   = screen
-        self.fonts    = fonts
-        self.settings = settings   # словарь: music, sfx, resolution_idx, language_idx
+        self.screen = screen
+        self.fonts = fonts
+        self.settings = settings  # словарь: music, sfx, resolution_idx, language_idx
 
         W, H = screen.get_size()
         cx = W // 2
@@ -128,12 +127,12 @@ class SettingsScreen:
         sx = cx - slider_w // 2
         self.slider_music = Slider(sx, H // 2 - 120, slider_w, "Музыка",
                                    value=settings.get("music", 0.7), font=fonts["body"])
-        self.slider_sfx   = Slider(sx, H // 2 - 40,  slider_w, "Звуковые эффекты",
-                                   value=settings.get("sfx", 0.8),   font=fonts["body"])
+        self.slider_sfx = Slider(sx, H // 2 - 40, slider_w, "Звуковые эффекты",
+                                 value=settings.get("sfx", 0.8), font=fonts["body"])
 
         # кнопки разрешения
-        self.res_idx  = settings.get("resolution_idx", 2)
-        self.lang_idx = settings.get("language_idx",   0)
+        self.res_idx = settings.get("resolution_idx", 2)
+        self.lang_idx = settings.get("language_idx", 0)
 
         bw, bh = 140, 36
         self._make_res_buttons(cx, H // 2 + 60, bw, bh)
@@ -144,7 +143,7 @@ class SettingsScreen:
                                "← Назад", PANEL_BG, BORDER, fonts["body"])
 
     def _make_res_buttons(self, cx, y, bw, bh):
-        n   = len(self.RESOLUTIONS)
+        n = len(self.RESOLUTIONS)
         gap = 10
         total = n * bw + (n - 1) * gap
         start = cx - total // 2
@@ -157,7 +156,7 @@ class SettingsScreen:
             )
 
     def _make_lang_buttons(self, cx, y, bw, bh):
-        n   = len(self.LANGUAGES)
+        n = len(self.LANGUAGES)
         gap = 10
         total = n * bw + (n - 1) * gap
         start = cx - total // 2
@@ -175,10 +174,10 @@ class SettingsScreen:
 
         if self.btn_back.is_clicked(event):
             # сохраняем значения обратно
-            self.settings["music"]          = self.slider_music.value
-            self.settings["sfx"]            = self.slider_sfx.value
+            self.settings["music"] = self.slider_music.value
+            self.settings["sfx"] = self.slider_sfx.value
             self.settings["resolution_idx"] = self.res_idx
-            self.settings["language_idx"]   = self.lang_idx
+            self.settings["language_idx"] = self.lang_idx
             return "back"
 
         for i, btn in enumerate(self.res_buttons):
@@ -243,8 +242,8 @@ class LoadScreen:
 
     def __init__(self, screen, fonts):
         self.screen = screen
-        self.fonts  = fonts
-        self.saves  = self._scan_saves()
+        self.fonts = fonts
+        self.saves = self._scan_saves()
         self.selected = None
 
         W, H = screen.get_size()
@@ -262,8 +261,8 @@ class LoadScreen:
         # кнопки
         self.btn_load = Button((cx - 170, H - 90, 150, 44),
                                "Загрузить", PANEL_BG, ACCENT, fonts["body"])
-        self.btn_back = Button((cx + 20,  H - 90, 150, 44),
-                               "← Назад",  PANEL_BG, BORDER, fonts["body"])
+        self.btn_back = Button((cx + 20, H - 90, 150, 44),
+                               "← Назад", PANEL_BG, BORDER, fonts["body"])
 
     def _scan_saves(self):
         saves = []
@@ -276,10 +275,10 @@ class LoadScreen:
                     with open(path) as f:
                         data = json.load(f)
                     saves.append({
-                        "file":  path,
-                        "name":  data.get("name", fname),
+                        "file": path,
+                        "name": data.get("name", fname),
                         "level": data.get("level", "—"),
-                        "time":  data.get("playtime", "—"),
+                        "time": data.get("playtime", "—"),
                     })
                 except Exception:
                     saves.append({"file": path, "name": fname,
@@ -325,7 +324,7 @@ class LoadScreen:
                 pygame.draw.rect(self.screen, bc, r, width=1, border_radius=6)
 
                 tc = DARK_BG if selected else TEXT_MAIN
-                name_s = self.fonts["body"].render(sv["name"],  True, tc)
+                name_s = self.fonts["body"].render(sv["name"], True, tc)
                 info_s = self.fonts["small"].render(
                     f"Уровень: {sv['level']}   |   Время: {sv['time']}",
                     True, DARK_BG if selected else TEXT_DIM)
@@ -345,8 +344,8 @@ class MainMenu:
     """
 
     def __init__(self, screen):
-        self.screen   = screen
-        self.clock    = pygame.time.Clock()
+        self.screen = screen
+        self.clock = pygame.time.Clock()
         self.settings = {"music": 0.7, "sfx": 0.8,
                          "resolution_idx": 2, "language_idx": 0}
         self._load_settings()
@@ -354,7 +353,7 @@ class MainMenu:
         self.fonts = self._build_fonts()
         self._build_buttons()
 
-        self.state   = "main"          # "main" | "settings" | "load"
+        self.state = "main"  # "main" | "settings" | "load"
         self.sub_screen = None
 
         # частицы-звёзды
@@ -380,10 +379,10 @@ class MainMenu:
                 break
 
         return {
-            "title":  display_font,
-            "sub":    pygame.font.SysFont(None, 26),
-            "body":   pygame.font.SysFont(None, 28),
-            "small":  pygame.font.SysFont(None, 22),
+            "title": display_font,
+            "sub": pygame.font.SysFont(None, 26),
+            "body": pygame.font.SysFont(None, 28),
+            "small": pygame.font.SysFont(None, 22),
         }
 
     # ── кнопки главного меню ──────────────────────────────────────────────────
@@ -395,10 +394,10 @@ class MainMenu:
         start_y = H // 2 - 20
 
         defs = [
-            ("Новая игра",        PANEL_BG, ACCENT,    "new_game"),
-            ("Загрузить игру",    PANEL_BG, ACCENT,    "load"),
-            ("Настройки",         PANEL_BG, ACCENT,    "settings"),
-            ("Выход",             PANEL_BG, RED_EXIT,  "quit"),
+            ("Новая игра", PANEL_BG, ACCENT, "new_game"),
+            ("Загрузить игру", PANEL_BG, ACCENT, "load"),
+            ("Настройки", PANEL_BG, ACCENT, "settings"),
+            ("Выход", PANEL_BG, RED_EXIT, "quit"),
         ]
         self.buttons = []
         for i, (label, cn, ch, action) in enumerate(defs):
@@ -442,7 +441,7 @@ class MainMenu:
     def _draw_title(self):
         W, H = self.screen.get_size()
         title = self.fonts["title"].render("Cursed Land", True, ACCENT)
-        sub   = self.fonts["sub"].render("v0.1  —  Demo Build", True, TEXT_DIM)
+        sub = self.fonts["sub"].render("v0.1  —  Demo Build", True, TEXT_DIM)
 
         ty = H // 2 - 190
         self.screen.blit(title, title.get_rect(centerx=W // 2, y=ty))
@@ -452,8 +451,8 @@ class MainMenu:
         pygame.draw.line(self.screen, BORDER,
                          (W // 2 - lw // 2, ty + title.get_height() + 6),
                          (W // 2 + lw // 2, ty + title.get_height() + 6), 1)
-        self.screen.blit(sub,   sub.get_rect(centerx=W // 2,
-                                             y=ty + title.get_height() + 14))
+        self.screen.blit(sub, sub.get_rect(centerx=W // 2,
+                                           y=ty + title.get_height() + 14))
 
     # ── основной цикл ─────────────────────────────────────────────────────────
     def run(self):

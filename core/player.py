@@ -11,32 +11,32 @@ import pygame
 import math
 
 # ─── Константы прокачки ───────────────────────────────────────────────────────
-BASE_HP            = 100
-BASE_SPEED         = 3
-BASE_DAMAGE        = 15
-XP_PER_LEVEL       = 100
+BASE_HP = 100
+BASE_SPEED = 3
+BASE_DAMAGE = 15
+XP_PER_LEVEL = 100
 
 STAT_POINTS_PER_LEVEL = 3
-HP_PER_POINT          = 20
-SPEED_PER_POINT       = 0.4
-DAMAGE_PER_POINT      = 8
+HP_PER_POINT = 20
+SPEED_PER_POINT = 0.4
+DAMAGE_PER_POINT = 8
 
 # ─── Параметры атаки ──────────────────────────────────────────────────────────
-ATTACK_CONE_ANGLE  = 80.0    # полуугол конуса атаки, градусы
-ATTACK_CONE_RADIUS = 110     # радиус конуса атаки, пикселей
-ATTACK_COOLDOWN    = 0.55    # секунд между атаками
-IFRAME_DURATION    = 0.65    # секунд неуязвимости после получения урона
+ATTACK_CONE_ANGLE = 80.0  # полуугол конуса атаки, градусы
+ATTACK_CONE_RADIUS = 110  # радиус конуса атаки, пикселей
+ATTACK_COOLDOWN = 0.55  # секунд между атаками
+IFRAME_DURATION = 0.65  # секунд неуязвимости после получения урона
 
 # Прогресс анимации атаки [0..1], в котором засчитывается удар
-ATTACK_HIT_START   = 0.30
-ATTACK_HIT_END     = 0.70
+ATTACK_HIT_START = 0.30
+ATTACK_HIT_END = 0.70
 
 # Смещение начала конуса атаки от центра хитбокса вперёд, пикселей
 ATTACK_CONE_OFFSET = 20
 
 # ─── Хитбокс ──────────────────────────────────────────────────────────────────
-HITBOX_W        = 52
-HITBOX_H        = 28
+HITBOX_W = 52
+HITBOX_H = 28
 # Смещение хитбокса вниз от world_x/y (центра спрайта).
 HITBOX_OFFSET_Y = 48
 
@@ -44,23 +44,23 @@ HITBOX_OFFSET_Y = 48
 # Формат: (y_offset, frame_w, frame_h, frame_count, scale)
 SPRITE_SHEET_LAYOUT = {
     "walk": {
-        "down":  (640,  64,  64, 9, 2),
-        "left":  (576,  64,  64, 9, 2),
-        "right": (704,  64,  64, 9, 2),
-        "up":    (512,  64,  64, 9, 2),
+        "down": (640, 64, 64, 9, 2),
+        "left": (576, 64, 64, 9, 2),
+        "right": (704, 64, 64, 9, 2),
+        "up": (512, 64, 64, 9, 2),
         "speed": 0.15,
     },
     "attack": {
-        "down":  (3840, 192, 192, 6, 2),
-        "up":    (3456, 192, 192, 6, 2),
-        "left":  (3648, 192, 192, 6, 2),
+        "down": (3840, 192, 192, 6, 2),
+        "up": (3456, 192, 192, 6, 2),
+        "left": (3648, 192, 192, 6, 2),
         "right": (4032, 192, 192, 6, 2),
         "speed": 0.25,
     },
     "idle": {
-        "down":  (1536, 64, 64, 2, 2),
-        "left":  (1472, 64, 64, 2, 2),
-        "up":    (1408, 64, 64, 2, 2),
+        "down": (1536, 64, 64, 2, 2),
+        "left": (1472, 64, 64, 2, 2),
+        "up": (1408, 64, 64, 2, 2),
         "right": (1600, 64, 64, 2, 2),
         "speed": 0.04,
     },
@@ -68,10 +68,10 @@ SPRITE_SHEET_LAYOUT = {
 
 # ─── Углы направлений ─────────────────────────────────────────────────────────
 FACING_ANGLES: dict[str, float] = {
-    "right":  0.0,
-    "down":  90.0,
-    "left":  180.0,
-    "up":    270.0,
+    "right": 0.0,
+    "down": 90.0,
+    "left": 180.0,
+    "up": 270.0,
 }
 
 
@@ -79,9 +79,9 @@ class Stats:
     """Характеристики персонажа. Чистая модель без pygame."""
 
     def __init__(self):
-        self.vitality:    int = 0
-        self.power:       int = 0
-        self.agility:     int = 0
+        self.vitality: int = 0
+        self.power: int = 0
+        self.agility: int = 0
         self.free_points: int = 0
 
     def max_hp(self) -> int:
@@ -109,16 +109,16 @@ class Stats:
 
     def to_dict(self) -> dict:
         return {
-            "vitality":    self.vitality,
-            "power":       self.power,
-            "agility":     self.agility,
+            "vitality": self.vitality,
+            "power": self.power,
+            "agility": self.agility,
             "free_points": self.free_points,
         }
 
     def from_dict(self, d: dict):
-        self.vitality    = d.get("vitality",    0)
-        self.power       = d.get("power",       0)
-        self.agility     = d.get("agility",     0)
+        self.vitality = d.get("vitality", 0)
+        self.power = d.get("power", 0)
+        self.agility = d.get("agility", 0)
         self.free_points = d.get("free_points", 0)
 
 
@@ -180,9 +180,9 @@ class Player:
                     self.animations[anim_name][direction] = self._load(
                         y_off, fw, fh, count, scale)
 
-        self.state        = "idle"
-        self.facing       = "down"
-        self.frame_index  = 0.0
+        self.state = "idle"
+        self.facing = "down"
+        self.frame_index = 0.0
         self.is_attacking = False
 
         # ── Мировые координаты (центр спрайта) ───────────────────────────────
@@ -191,28 +191,28 @@ class Player:
 
         # ── Визуальный rect (меняет размер со спрайтом, только для отрисовки) ─
         self.image = self.animations["idle"]["down"][0]
-        self.rect  = self.image.get_rect(center=(x, y))
+        self.rect = self.image.get_rect(center=(x, y))
 
         # ── Хитбокс (фиксированный размер, для коллизий со стенами и врагами) ─
         self.hitbox = pygame.Rect(0, 0, HITBOX_W, HITBOX_H)
         self._sync_rects()
 
-        self.stats     = Stats()
+        self.stats = Stats()
         self.inventory = Inventory()
         self.level = 1
-        self.xp    = 0
+        self.xp = 0
 
         self._current_hp: float = float(self.stats.max_hp())
-        self._attack_cd:  float = 0.0
-        self._iframe_cd:  float = 0.0
-        self._hit_dealt:  bool  = False
+        self._attack_cd: float = 0.0
+        self._iframe_cd: float = 0.0
+        self._hit_dealt: bool = False
 
     # ── синхронизация rect и hitbox из world_x/y ─────────────────────────────
     def _sync_rects(self):
         """Пересчитывает hitbox и rect из world_x/world_y."""
         self.hitbox.center = (int(self.world_x),
                               int(self.world_y) + HITBOX_OFFSET_Y)
-        self.rect.center   = (int(self.world_x), int(self.world_y))
+        self.rect.center = (int(self.world_x), int(self.world_y))
 
     # ── загрузка кадров ───────────────────────────────────────────────────────
     def _load(self, y: int, fw: int, fh: int, count: int, scale: int = 1):
@@ -242,7 +242,7 @@ class Player:
         self.xp += amount
         needed = XP_PER_LEVEL * self.level
         while self.xp >= needed:
-            self.xp   -= needed
+            self.xp -= needed
             self.level += 1
             self.stats.free_points += STAT_POINTS_PER_LEVEL
             self._current_hp = float(self.stats.max_hp())
@@ -268,15 +268,15 @@ class Player:
         cx = float(self.hitbox.centerx)
         cy = float(self.hitbox.centery)
         angle = FACING_ANGLES[self.facing]
-        rad   = math.radians(angle)
-        ox    = cx + math.cos(rad) * ATTACK_CONE_OFFSET
-        oy    = cy + math.sin(rad) * ATTACK_CONE_OFFSET
+        rad = math.radians(angle)
+        ox = cx + math.cos(rad) * ATTACK_CONE_OFFSET
+        oy = cy + math.sin(rad) * ATTACK_CONE_OFFSET
         return ox, oy, angle, ATTACK_CONE_ANGLE, ATTACK_CONE_RADIUS
 
     def point_in_attack_cone(self, px: float, py: float) -> bool:
         ox, oy, dir_deg, half_deg, radius = self.get_attack_cone()
         dx, dy = px - ox, py - oy
-        dist   = math.hypot(dx, dy)
+        dist = math.hypot(dx, dy)
         if dist > radius or dist < 1e-3:
             return False
         point_angle = math.degrees(math.atan2(dy, dx)) % 360
@@ -298,12 +298,12 @@ class Player:
         if self._hit_dealt:
             return False
 
-        total    = len(self.animations["attack"][self.facing])
+        total = len(self.animations["attack"][self.facing])
         progress = self.frame_index / total
         if not (ATTACK_HIT_START <= progress <= ATTACK_HIT_END):
             return False
 
-        dmg     = self.stats.damage()
+        dmg = self.stats.damage()
         hit_any = False
         for enemy in enemy_manager.enemies:
             if self.point_in_attack_cone(enemy.x, enemy.y):
@@ -333,20 +333,28 @@ class Player:
 
         mouse = pygame.mouse.get_pressed()
         if mouse[0] and self._attack_cd <= 0:
-            self.state        = "attack"
+            self.state = "attack"
             self.is_attacking = True
-            self.frame_index  = 0.0
-            self._hit_dealt   = False
+            self.frame_index = 0.0
+            self._hit_dealt = False
             moving = True
         else:
             if keys[pygame.K_w]:
-                self.world_y -= spd; self.facing = "up";    moving = True
+                self.world_y -= spd;
+                self.facing = "up";
+                moving = True
             elif keys[pygame.K_s]:
-                self.world_y += spd; self.facing = "down";  moving = True
+                self.world_y += spd;
+                self.facing = "down";
+                moving = True
             if keys[pygame.K_a]:
-                self.world_x -= spd; self.facing = "left";  moving = True
+                self.world_x -= spd;
+                self.facing = "left";
+                moving = True
             elif keys[pygame.K_d]:
-                self.world_x += spd; self.facing = "right"; moving = True
+                self.world_x += spd;
+                self.facing = "right";
+                moving = True
 
         if not moving:
             self.state = "idle"
@@ -355,7 +363,7 @@ class Player:
         self.animate(dt)
 
     def animate(self, dt: float = 1.0):
-        anim   = self.animations[self.state]
+        anim = self.animations[self.state]
         frames = anim[self.facing]
         self.frame_index += anim["speed"] * dt
 
@@ -363,24 +371,24 @@ class Player:
             self.frame_index = 0.0
             if self.is_attacking:
                 self.is_attacking = False
-                self._hit_dealt   = False
+                self._hit_dealt = False
                 self.state = "idle"
 
         self.image = frames[int(self.frame_index)]
-        self.rect  = self.image.get_rect(center=(int(self.world_x), int(self.world_y)))
+        self.rect = self.image.get_rect(center=(int(self.world_x), int(self.world_y)))
         self.hitbox.center = (int(self.world_x),
                               int(self.world_y) + HITBOX_OFFSET_Y)
 
     # ── сериализация ──────────────────────────────────────────────────────────
     def to_dict(self) -> dict:
         return {
-            "x":          self.world_x,
-            "y":          self.world_y,
-            "level":      self.level,
-            "xp":         self.xp,
+            "x": self.world_x,
+            "y": self.world_y,
+            "level": self.level,
+            "xp": self.xp,
             "current_hp": self._current_hp,
-            "stats":      self.stats.to_dict(),
-            "inventory":  self.inventory.to_dict(),
+            "stats": self.stats.to_dict(),
+            "inventory": self.inventory.to_dict(),
         }
 
     def from_dict(self, d: dict):
@@ -388,7 +396,7 @@ class Player:
         self.world_y = float(d.get("y", self.world_y))
         self._sync_rects()
         self.level = d.get("level", 1)
-        self.xp    = d.get("xp",    0)
+        self.xp = d.get("xp", 0)
         self.stats.from_dict(d.get("stats", {}))
         self.inventory.from_dict(d.get("inventory", {}))
         self._current_hp = d.get("current_hp", float(self.stats.max_hp()))

@@ -18,24 +18,23 @@ core/audio.py — звуковая система.
 import os
 import pygame
 
-
 # ─── Пути к ресурсам ─────────────────────────────────────────────────────────
 SOUNDS_DIR = os.path.join("assets", "sounds")
 
 # Имена звуковых эффектов → файлы
 SFX_FILES: dict[str, str] = {
-    "hit":          "hit.wav",
-    "player_hurt":  "player_hurt.wav",
-    "enemy_hurt":   "enemy_hurt.wav",
-    "projectile":   "projectile.wav",
-    "level_up":     "level_up.wav",
+    "hit": "hit.wav",
+    "player_hurt": "player_hurt.wav",
+    "enemy_hurt": "enemy_hurt.wav",
+    "projectile": "projectile.wav",
+    "level_up": "level_up.wav",
 }
 
 # Файл фоновой музыки
 MUSIC_FILE = os.path.join(SOUNDS_DIR, "music_game.ogg")
 
 # Громкость по умолчанию
-DEFAULT_SFX_VOLUME   = 0.7
+DEFAULT_SFX_VOLUME = 0.7
 DEFAULT_MUSIC_VOLUME = 0.4
 
 
@@ -52,8 +51,8 @@ class AudioManager:
     """
 
     def __init__(self):
-        self._sfx_cache:    dict[str, pygame.mixer.Sound | None] = {}
-        self._sfx_volume  = DEFAULT_SFX_VOLUME
+        self._sfx_cache: dict[str, pygame.mixer.Sound | None] = {}
+        self._sfx_volume = DEFAULT_SFX_VOLUME
         self._music_volume = DEFAULT_MUSIC_VOLUME
         self._music_playing = False
 

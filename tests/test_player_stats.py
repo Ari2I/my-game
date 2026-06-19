@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # Мокаем pygame.image.load чтобы избежать инициализации дисплея при импорте
 import unittest.mock as mock
 import pygame
+
 # Инициализируем только pygame без дисплея (для pygame.Rect и т.д.)
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -34,9 +35,9 @@ class TestStats:
     def test_default_values(self):
         """Начальные значения характеристик равны нулю, очков нет."""
         s = Stats()
-        assert s.vitality    == 0
-        assert s.power       == 0
-        assert s.agility     == 0
+        assert s.vitality == 0
+        assert s.power == 0
+        assert s.agility == 0
         assert s.free_points == 0
 
     def test_max_hp_base(self):
@@ -55,7 +56,7 @@ class TestStats:
         s = Stats()
         for vit in (0, 1, 5, 10):
             s.vitality = vit
-            expected   = BASE_HP + vit * HP_PER_POINT
+            expected = BASE_HP + vit * HP_PER_POINT
             assert s.max_hp() == expected, (
                 f"max_hp({vit}) == {s.max_hp()}, ожидалось {expected}"
             )
@@ -69,8 +70,8 @@ class TestStats:
         """Формулы скорости и урона корректны."""
         s = Stats()
         s.agility = 4
-        s.power   = 3
-        assert abs(s.speed()  - (BASE_SPEED  + 4 * SPEED_PER_POINT))  < 1e-9
+        s.power = 3
+        assert abs(s.speed() - (BASE_SPEED + 4 * SPEED_PER_POINT)) < 1e-9
         assert s.damage() == BASE_DAMAGE + 3 * DAMAGE_PER_POINT
 
     def test_add_point_decreases_free_points(self):
@@ -80,7 +81,7 @@ class TestStats:
         result = s.add_point("vitality")
         assert result is True
         assert s.free_points == 2
-        assert s.vitality    == 1
+        assert s.vitality == 1
 
     def test_add_point_returns_false_without_free_points(self):
         """add_point возвращает False если очков нет."""
@@ -96,7 +97,7 @@ class TestStats:
         s.free_points = 2
         result = s.add_point("unknown_stat")
         assert result is False
-        assert s.free_points == 2   # очки не потрачены
+        assert s.free_points == 2  # очки не потрачены
 
     def test_add_point_all_stats(self):
         """Все три характеристики принимаются корректно."""
@@ -110,23 +111,26 @@ class TestStats:
     def test_serialization_roundtrip(self):
         """to_dict / from_dict сохраняют и восстанавливают все поля."""
         s = Stats()
-        s.vitality = 2; s.power = 5; s.agility = 3; s.free_points = 7
+        s.vitality = 2;
+        s.power = 5;
+        s.agility = 3;
+        s.free_points = 7
         data = s.to_dict()
 
         s2 = Stats()
         s2.from_dict(data)
-        assert s2.vitality    == 2
-        assert s2.power       == 5
-        assert s2.agility     == 3
+        assert s2.vitality == 2
+        assert s2.power == 5
+        assert s2.agility == 3
         assert s2.free_points == 7
 
     def test_from_dict_missing_keys(self):
         """from_dict корректно обрабатывает неполный словарь (defaults = 0)."""
         s = Stats()
         s.from_dict({})
-        assert s.vitality    == 0
-        assert s.power       == 0
-        assert s.agility     == 0
+        assert s.vitality == 0
+        assert s.power == 0
+        assert s.agility == 0
         assert s.free_points == 0
 
 
@@ -175,13 +179,13 @@ class TestInventory:
     def test_serialization_roundtrip(self):
         """to_dict / from_dict сохраняют и восстанавливают все предметы."""
         inv = Inventory()
-        inv.add_item("slime_goo",   4)
+        inv.add_item("slime_goo", 4)
         inv.add_item("magic_shard", 2)
         data = inv.to_dict()
 
         inv2 = Inventory()
         inv2.from_dict(data)
-        assert inv2.get_item("slime_goo")   == 4
+        assert inv2.get_item("slime_goo") == 4
         assert inv2.get_item("magic_shard") == 2
 
     def test_from_dict_legacy_format(self):
@@ -193,8 +197,8 @@ class TestInventory:
     def test_multiple_items(self):
         """Инвентарь корректно хранит несколько разных предметов."""
         inv = Inventory()
-        inv.add_item("slime_goo",   3)
-        inv.add_item("rune_stone",  1)
+        inv.add_item("slime_goo", 3)
+        inv.add_item("rune_stone", 1)
         inv.add_item("magic_shard", 5)
         assert len(inv.items) == 3
         assert inv.get_item("rune_stone") == 1
