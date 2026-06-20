@@ -65,6 +65,15 @@ class CachedTileMap(TileMap):
     draw_ground() и iter_object_sprites() из базового класса так, чтобы они
     тоже использовали кэш — без этого сортировка по 60×60 тайлам объектных
     слоёв на каждый кадр была бы слишком медленной.
+
+    iter_object_sprites() здесь ПЕРЕИСПОЛЬЗУЕТ группировку тайлов в связные
+    блоки (self._get_object_groups(), унаследовано из TileMap, см.
+    core/map.py) — без неё крупные многотайловые объекты карты (например,
+    декоративные монументы на много тайлов) «разваливаются» при потайловой
+    Y-сортировке: верхняя часть объекта считается «дальше» игрока, нижняя —
+    «ближе», и персонаж оказывается визуально разрезан пополам относительно
+    объекта. Группировка считается один раз и кэшируется в self._object_groups_cache
+    (унаследованный кэш из TileMap), поэтому на FPS это не влияет.
     """
 
     def __init__(self, filename):
@@ -117,29 +126,43 @@ class CachedTileMap(TileMap):
 
     def iter_object_sprites(self, layer_names=None):
         """
-        Возвращает «высокие» тайлы (деревья/постройки/мосты) с кэшированными
-        изображениями — для последующей Y-сортировки вместе с игроком/врагами.
-        Отдаёт уже масштабированные Surface (а не сырые тайлы), т.к. кэш
-        CachedTileMap хранит именно их.
+        Возвращает «высокие» тайлы (деревья/постройки/мосты/крупные
+        многотайловые декорации) СГРУППИРОВАННЫМИ в связные блоки — для
+        последующей Y-сортировки вместе с игроком/врагами.
+
+        Группировка (flood fill по связности) переиспользуется из базового
+        TileMap._get_object_groups() / _build_object_groups() (см.
+        core/map.py — там же подробный докстринг о том, зачем группировка
+        вообще нужна). Эта реализация отличается от базовой только тем, что
+        берёт картинки тайлов из кэша self._get_scaled(gid) вместо
+        pygame.transform.scale на каждый вызов.
+
+        Формат результата (как и в базовом TileMap):
+            [(y_sort_key, [(tile_image, world_x, world_y), ...]), ...]
         """
-        import pytmx
         from core.map import OBJECT_LAYER_NAMES
         names = layer_names if layer_names is not None else OBJECT_LAYER_NAMES
-        sprites = []
-        for layer in self.tmx_data.visible_layers:
-            if not isinstance(layer, pytmx.TiledTileLayer):
-                continue
-            if layer.name not in names:
-                continue
-            for x, y, gid in layer:
+        groups = self._get_object_groups(names)
+
+        result = []
+        for group in groups:
+            tiles_out = []
+            max_bottom = None
+            for tx, ty, gid in group["cells"]:
                 scaled = self._get_scaled(gid)
                 if not scaled:
                     continue
-                world_x = x * self.tile_width
-                world_y = y * self.tile_height
-                y_sort_key = world_y + self.tile_height
-                sprites.append((y_sort_key, scaled, world_x, world_y))
-        return sprites
+                world_x = tx * self.tile_width
+                world_y = ty * self.tile_height
+                tile_bottom = world_y + self.tile_height
+                if max_bottom is None or tile_bottom > max_bottom:
+                    max_bottom = tile_bottom
+                tiles_out.append((scaled, world_x, world_y))
+
+            if tiles_out:
+                result.append((float(max_bottom), tiles_out))
+
+        return result
 
 
 # ── вспомогательный адаптер для try_deal_attack ───────────────────────────────

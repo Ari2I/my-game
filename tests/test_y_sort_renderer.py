@@ -8,6 +8,12 @@ Y-координаты нижней точки сущности: объект с
 Тесты не проверяют визуальный пиксельный результат (это сделал бы интеграционный
 тест с реальным экраном), а проверяют сам алгоритм построения порядка через
 перехват вызовов отрисовки (порядок side-эффектов).
+
+Точка сортировки игрока — body_rect.bottom (нижняя точка ПОЛНОГО визуального
+силуэта спрайта), а не hitbox.bottom (узкий хитбокс у ног, нужен только для
+коллизий со стенами). См. докстринг core/render/y_sort_renderer.py и
+core/player.py — почему это разделение важно для корректного перекрытия
+объектами карты.
 """
 
 import sys
@@ -55,14 +61,32 @@ class _TrackingScreen:
         return getattr(self._real, name)
 
 
-def make_player(bottom_y: float):
-    """Mock игрока с заданной Y-координатой низа хитбокса."""
+def make_player(bottom_y: float, body_bottom_y: float | None = None):
+    """
+    Mock игрока.
+
+    bottom_y       — нижняя точка hitbox (ноги, для коллизий/боя — НЕ
+                      используется этим рендерером, оставлен для полноты mock).
+    body_bottom_y  — нижняя точка body_rect (полный силуэт спрайта).
+                      Именно это значение используется YSortRenderer для
+                      сортировки. Если не задан — берётся равным bottom_y
+                      (для тестов, которым важна только сама механика
+                      сортировки, а не конкретное расхождение хитбокса
+                      и силуэта).
+    """
+    if body_bottom_y is None:
+        body_bottom_y = bottom_y
+
     p = mock.MagicMock()
     p.hitbox = pygame.Rect(100, int(bottom_y) - 28, 28, 28)  # bottom == bottom_y
     p.is_attacking = False
     p.is_invincible = False
     p.image = pygame.Surface((32, 32))
-    p.rect = pygame.Rect(90, int(bottom_y) - 32, 32, 32)
+    p.rect = pygame.Rect(90, int(body_bottom_y) - 32, 32, 32)
+    # body_rect — отдельный публичный rect полного силуэта (см. core/player.py).
+    # В реальном коде это property, возвращающее self.rect; в mock задаём
+    # тем же прямоугольником, чтобы .bottom давал нужное тестовое значение.
+    p.body_rect = p.rect
     return p
 
 
@@ -110,7 +134,7 @@ class TestYSortOrdering:
         y_sort.draw(tracking_screen, 0, 0, game_map=game_map,
                     player=player, slimes=slimes, ranged=ranged)
 
-        # Тайл с y_sort_key=50 (< hitbox.bottom=200 игрока) обязан быть
+        # Тайл с y_sort_key=50 (< body_rect.bottom=200 игрока) обязан быть
         # отрисован раньше игрока в общем порядке вызовов.
         assert tile_surf in tracking_screen.blit_calls
         assert "player" in call_order
@@ -171,6 +195,58 @@ class TestYSortOrdering:
 
         assert draw_sequence == ["tile_above", "player", "tile_below"], (
             f"Неверный порядок Y-сортировки: {draw_sequence}"
+        )
+
+    def test_player_sorted_by_body_rect_not_hitbox(self):
+        """
+        Регрессионный тест на исправленный баг: сортировка должна идти по
+        body_rect.bottom (полный силуэт), а НЕ по hitbox.bottom (ноги).
+
+        Раньше хитбокс был смещён вниз и существенно меньше спрайта
+        (HITBOX_OFFSET_Y, HITBOX_H в core/player.py), поэтому объект,
+        чей y_sort_key оказывался между hitbox.bottom и верхней границей
+        спрайта, перекрывал игрока некорректно («торчала голова»).
+
+        Здесь намеренно разносим hitbox.bottom и body_rect.bottom на
+        разные значения и проверяем, что в сортировке используется именно
+        body_rect.bottom.
+        """
+        # hitbox «у ног» заканчивается на Y=400 (близко к земле),
+        # но body_rect (полный спрайт) гораздо выше — заканчивается на Y=120.
+        player = make_player(bottom_y=400, body_bottom_y=120)
+
+        tile_surf = pygame.Surface((64, 64))
+        # Объект с y_sort_key=200 — между hitbox.bottom(400) и body_rect.bottom(120).
+        # Если бы сортировка ошибочно шла по hitbox.bottom (400), игрок
+        # считался бы «ближе» этого объекта (400 > 200) и рисовался бы
+        # ПОСЛЕ тайла — корректно. Но если сортировка идёт по
+        # body_rect.bottom (120), игрок «дальше» объекта (120 < 200) и
+        # должен рисоваться ДО тайла.
+        game_map = make_game_map([(200.0, tile_surf, 64, 136)])
+
+        player_renderer, slime_renderer, ranged_renderer, call_order = make_renderers()
+        slimes = SlimeManager(2000, 2000)
+        ranged = RangedEnemyManager(2000, 2000)
+
+        draw_sequence = []
+        tracking_screen = _TrackingScreen(SCREEN)
+        original_blit = tracking_screen.blit
+
+        def tracking_blit(surface, dest, *a, **k):
+            if surface is tile_surf:
+                draw_sequence.append("tile")
+            return original_blit(surface, dest, *a, **k)
+
+        tracking_screen.blit = tracking_blit
+        player_renderer.draw.side_effect = lambda *a, **k: draw_sequence.append("player")
+
+        y_sort = YSortRenderer(player_renderer, slime_renderer, ranged_renderer)
+        y_sort.draw(tracking_screen, 0, 0, game_map=game_map,
+                    player=player, slimes=slimes, ranged=ranged)
+
+        assert draw_sequence == ["player", "tile"], (
+            f"Сортировка должна идти по body_rect.bottom (120), а не "
+            f"hitbox.bottom (400). Получен порядок: {draw_sequence}"
         )
 
     def test_slimes_and_ranged_enemies_participate_in_sorting(self):
