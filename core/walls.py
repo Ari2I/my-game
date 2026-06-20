@@ -35,8 +35,6 @@ SOLID_LAYER_NAMES: set[str] = {
     "bridges",  # мосты — проходимы поверх воды, но блокируют сбоку
 }
 
-# GID-диапазоны тайлсетов, которые всегда solid
-# (заполнишь когда определишь конкретные тайлы)
 SOLID_GID_RANGES: list[tuple[int, int]] = [
     # (first_gid, last_gid),
     # пример: (10714, 11675),   # Bridges

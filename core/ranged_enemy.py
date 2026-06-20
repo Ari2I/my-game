@@ -15,7 +15,7 @@ FSM состояния:
 
 import math
 import random
-import pygame
+
 
 from core.enemy import Enemy, EnemyManager
 from core.projectile import Projectile

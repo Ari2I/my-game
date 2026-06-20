@@ -21,25 +21,26 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from core.map            import TileMap
-from core.player         import Player, HITBOX_OFFSET_Y
-from core.hud            import HUD
-from core.menu           import MainMenu
-from core.pause_menu     import PauseMenu
-from core.inventory_ui   import InventoryPanel
-from core.intro_screen   import IntroScreen
-from core.audio          import AudioManager
-from core.slime          import SlimeManager
-from core.ranged_enemy   import RangedEnemyManager
-from core.wave_manager   import WaveManager
-from core.walls          import WallMap
+from core.map import TileMap
+from core.player import Player, HITBOX_OFFSET_Y
+from core.hud import HUD
+from core.menu import MainMenu
+from core.pause_menu import PauseMenu
+from core.inventory_ui import InventoryPanel
+from core.intro_screen import IntroScreen
+from core.audio import AudioManager
+from core.slime import SlimeManager
+from core.ranged_enemy import RangedEnemyManager
+from core.wave_manager import WaveManager
+from core.walls import WallMap
 
-from core.render.player_renderer       import PlayerRenderer
-from core.render.slime_renderer        import SlimeManagerRenderer
+from core.render.player_renderer import PlayerRenderer
+from core.render.slime_renderer import SlimeManagerRenderer
 from core.render.ranged_enemy_renderer import RangedEnemyManagerRenderer
+from core.render.y_sort_renderer import YSortRenderer
 
-WIDTH      = 1920
-HEIGHT     = 1080
+WIDTH = 1920
+HEIGHT = 1080
 TARGET_FPS = 120
 
 pygame.init()
@@ -50,13 +51,22 @@ clock = pygame.time.Clock()
 font_fps = pygame.font.SysFont(None, 26)
 font_dbg = pygame.font.SysFont(None, 22)
 
-show_fps   = False
+show_fps = False
 show_walls = False
-show_cone  = False
+show_cone = False
 
 
 # ── кешированная карта ────────────────────────────────────────────────────────
 class CachedTileMap(TileMap):
+    """
+    Расширяет TileMap кэшированием масштабированных тайлов по gid.
+
+    Для Y-сортировки (персонаж то перед объектом, то за ним) переопределяет
+    draw_ground() и iter_object_sprites() из базового класса так, чтобы они
+    тоже использовали кэш — без этого сортировка по 60×60 тайлам объектных
+    слоёв на каждый кадр была бы слишком медленной.
+    """
+
     def __init__(self, filename):
         super().__init__(filename)
         self._cache: dict = {}
@@ -71,18 +81,65 @@ class CachedTileMap(TileMap):
         return self._cache[gid]
 
     def draw(self, screen, camera_x=0, camera_y=0):
+        """Старое поведение: рисует ВСЕ слои одним проходом (для меню/превью)."""
         import pytmx
         sw, sh = screen.get_size()
         for layer in self.tmx_data.visible_layers:
             if isinstance(layer, pytmx.TiledTileLayer):
                 for x, y, gid in layer:
-                    tx = x * self.tile_width  - camera_x
+                    tx = x * self.tile_width - camera_x
                     ty = y * self.tile_height - camera_y
                     if tx > sw or ty > sh or tx < -self.tile_width or ty < -self.tile_height:
                         continue
                     scaled = self._get_scaled(gid)
                     if scaled:
                         screen.blit(scaled, (tx, ty))
+
+    def draw_ground(self, screen, camera_x=0, camera_y=0, layer_names=None):
+        """Рисует только слои земли, с кэшированными тайлами + отсечением экрана."""
+        import pytmx
+        from core.map import GROUND_LAYER_NAMES
+        names = layer_names if layer_names is not None else GROUND_LAYER_NAMES
+        sw, sh = screen.get_size()
+        for layer in self.tmx_data.visible_layers:
+            if not isinstance(layer, pytmx.TiledTileLayer):
+                continue
+            if layer.name not in names:
+                continue
+            for x, y, gid in layer:
+                tx = x * self.tile_width - camera_x
+                ty = y * self.tile_height - camera_y
+                if tx > sw or ty > sh or tx < -self.tile_width or ty < -self.tile_height:
+                    continue
+                scaled = self._get_scaled(gid)
+                if scaled:
+                    screen.blit(scaled, (tx, ty))
+
+    def iter_object_sprites(self, layer_names=None):
+        """
+        Возвращает «высокие» тайлы (деревья/постройки/мосты) с кэшированными
+        изображениями — для последующей Y-сортировки вместе с игроком/врагами.
+        Отдаёт уже масштабированные Surface (а не сырые тайлы), т.к. кэш
+        CachedTileMap хранит именно их.
+        """
+        import pytmx
+        from core.map import OBJECT_LAYER_NAMES
+        names = layer_names if layer_names is not None else OBJECT_LAYER_NAMES
+        sprites = []
+        for layer in self.tmx_data.visible_layers:
+            if not isinstance(layer, pytmx.TiledTileLayer):
+                continue
+            if layer.name not in names:
+                continue
+            for x, y, gid in layer:
+                scaled = self._get_scaled(gid)
+                if not scaled:
+                    continue
+                world_x = x * self.tile_width
+                world_y = y * self.tile_height
+                y_sort_key = world_y + self.tile_height
+                sprites.append((y_sort_key, scaled, world_x, world_y))
+        return sprites
 
 
 # ── вспомогательный адаптер для try_deal_attack ───────────────────────────────
@@ -91,8 +148,9 @@ class _CombinedEnemyView:
     Позволяет player.try_deal_attack работать со всеми врагами сразу.
     Принцип ISP: Player видит только интерфейс .enemies.
     """
+
     def __init__(self, slime_mgr, ranged_mgr):
-        self._slime_mgr  = slime_mgr
+        self._slime_mgr = slime_mgr
         self._ranged_mgr = ranged_mgr
 
     @property
@@ -105,7 +163,7 @@ def run_game(save_path=None):
     global show_fps, show_walls, show_cone
 
     game_map = CachedTileMap("images/maps/mapV1.tmx")
-    map_w_px = game_map.tmx_data.width  * game_map.tile_width
+    map_w_px = game_map.tmx_data.width * game_map.tile_width
     map_h_px = game_map.tmx_data.height * game_map.tile_height
 
     wall_map = WallMap(game_map.tmx_data, game_map.tile_width, game_map.tile_height)
@@ -120,19 +178,20 @@ def run_game(save_path=None):
         except Exception as e:
             print(f"[game] Ошибка загрузки: {e}")
 
-    hud        = HUD(WIDTH, HEIGHT)
-    inv_panel  = InventoryPanel(WIDTH, HEIGHT)
+    hud = HUD(WIDTH, HEIGHT)
+    inv_panel = InventoryPanel(WIDTH, HEIGHT)
     pause_menu = PauseMenu(screen)
-    audio      = AudioManager()
+    audio = AudioManager()
 
     slimes = SlimeManager(map_w_px, map_h_px)
     ranged = RangedEnemyManager(map_w_px, map_h_px)
-    wave_mgr    = WaveManager(slimes, ranged)
+    wave_mgr = WaveManager(slimes, ranged)
     all_enemies = _CombinedEnemyView(slimes, ranged)
 
     player_renderer = PlayerRenderer(player)
-    slime_renderer  = SlimeManagerRenderer()
+    slime_renderer = SlimeManagerRenderer()
     ranged_renderer = RangedEnemyManagerRenderer()
+    y_sort_renderer = YSortRenderer(player_renderer, slime_renderer, ranged_renderer)
 
     # Запускаем фоновую музыку (если файл есть)
     audio.play_music()
@@ -142,12 +201,12 @@ def run_game(save_path=None):
     player.gain_xp(80)
 
     # Состояние игры
-    paused     = False
+    paused = False
     last_frame = pygame.Surface((WIDTH, HEIGHT))  # снимок последнего кадра для паузы
 
     while True:
         raw_ms = clock.tick(TARGET_FPS)
-        dt     = min(raw_ms / (1000.0 / TARGET_FPS), 4.0)
+        dt = min(raw_ms / (1000.0 / TARGET_FPS), 4.0)
         mouse_pos = pygame.mouse.get_pos()
 
         # ── обработка событий ─────────────────────────────────────────────────
@@ -174,9 +233,9 @@ def run_game(save_path=None):
                 if event.key == pygame.K_TAB:
                     inv_panel.toggle()
 
-                if event.key == pygame.K_F3:   show_fps   = not show_fps
+                if event.key == pygame.K_F3:   show_fps = not show_fps
                 if event.key == pygame.K_F4:   show_walls = not show_walls
-                if event.key == pygame.K_F5:   show_cone  = not show_cone
+                if event.key == pygame.K_F5:   show_cone = not show_cone
                 if event.key == pygame.K_h:    player.take_damage(10)
                 if event.key == pygame.K_x:
                     player.gain_xp(50)
@@ -234,24 +293,33 @@ def run_game(save_path=None):
             enemy.y = float(enemy.rect.centery)
 
         # ── камера ────────────────────────────────────────────────────────────
-        camera_x = max(0, min(player.hitbox.centerx - WIDTH  // 2, map_w_px - WIDTH))
+        camera_x = max(0, min(player.hitbox.centerx - WIDTH // 2, map_w_px - WIDTH))
         camera_y = max(0, min(player.hitbox.centery - HEIGHT // 2, map_h_px - HEIGHT))
 
         # ── отрисовка ─────────────────────────────────────────────────────────
         screen.fill((39, 42, 57))
-        game_map.draw(screen, camera_x, camera_y)
+
+        # 1. Земля — всегда под всеми сущностями (вода, грунт, детали)
+        game_map.draw_ground(screen, camera_x, camera_y)
 
         if show_walls:
             wall_map.debug_draw(screen, camera_x, camera_y)
 
-        slime_renderer.draw(slimes, screen, camera_x, camera_y)
-        ranged_renderer.draw(ranged, screen, camera_x, camera_y)
-
+        # 2. Y-сортированный проход: «высокие» тайлы карты (деревья, мосты,
+        #    постройки) + игрок + слаймы + дальние враги — все вместе,
+        #    в порядке Y-координаты нижней точки. Благодаря этому персонаж
+        #    оказывается то перед объектом, то за ним, в зависимости от
+        #    того, кто стоит «ближе к зрителю».
         if show_cone:
             player_renderer.draw_attack_cone(screen, camera_x, camera_y)
 
-        player_renderer.draw(screen, camera_x, camera_y)
-        player_renderer.draw_iframe_flash(screen, camera_x, camera_y)
+        y_sort_renderer.draw(
+            screen, camera_x, camera_y,
+            game_map=game_map, player=player, slimes=slimes, ranged=ranged,
+        )
+
+        # 3. Снаряды — летят поверх Y-сортированной сцены (в воздухе)
+        ranged_renderer.draw_projectiles(ranged, screen, camera_x, camera_y)
 
         # Отладка: зелёный хитбокс
         if show_walls:
@@ -292,7 +360,7 @@ def run_game(save_path=None):
 # ── главный цикл ──────────────────────────────────────────────────────────────
 def main():
     while True:
-        menu   = MainMenu(screen)
+        menu = MainMenu(screen)
         result = menu.run()
 
         if result == "quit":
@@ -301,7 +369,7 @@ def main():
         # Перед новой игрой — показываем интро (ЭТАП 5.2)
         if result == "new_game":
             intro = IntroScreen(screen)
-            intro.run()   # "done" или "skip" — в любом случае запускаем игру
+            intro.run()  # "done" или "skip" — в любом случае запускаем игру
             save = None
         else:
             save = result[len("load:"):] if result.startswith("load:") else None

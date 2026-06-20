@@ -9,6 +9,10 @@ SlimeManagerRenderer обходит SlimeManager.slimes и вызывает Slim
 Доступ к приватным полям модели (_hit_flash, _bounce_phase, _squash,
 _state_timer) осуществляется через публичные read-only свойства
 (hit_flash, bounce_phase, squash, state_timer), объявленные в core.slime.Slime.
+
+draw_one() добавлен для поддержки Y-сортировки (core/render/y_sort_renderer.py):
+позволяет отрисовать ОДНОГО конкретного слайма без перебора всего списка,
+когда порядок отрисовки определяется внешним сортировщиком.
 """
 
 import math
@@ -104,5 +108,14 @@ class SlimeManagerRenderer:
         self._slime_renderer = SlimeRenderer()
 
     def draw(self, manager, screen, camera_x=0, camera_y=0):
+        """Рисует ВСЕХ слаймов менеджера одним проходом (без Y-сортировки)."""
         for slime in manager.slimes:
             self._slime_renderer.draw(slime, screen, camera_x, camera_y)
+
+    def draw_one(self, slime, screen, camera_x=0, camera_y=0):
+        """
+        Рисует ОДНОГО слайма. Используется YSortRenderer, когда порядок
+        отрисовки относительно игрока и других объектов определяется
+        внешней Y-сортировкой, а не порядком в списке slimes.
+        """
+        self._slime_renderer.draw(slime, screen, camera_x, camera_y)
