@@ -324,4 +324,4 @@ class TestYSortOrdering:
         y_sort.draw(SCREEN, 0, 0, game_map=game_map,
                     player=player, slimes=slimes, ranged=ranged)
 
-        assert call_order == ["player"]3
+        assert call_order == ["player"]
