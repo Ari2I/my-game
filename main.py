@@ -11,6 +11,14 @@ main.py — точка входа.
   X     — (DEBUG) +50 XP, +1 слизь
   Q     — (DEBUG) заспавнить 3 слайма
   E     — (DEBUG) заспавнить 1 дальнего врага
+
+Гибель персонажа:
+  Когда player.is_dead становится True (current_hp достиг 0), игровая
+  логика (движение, атака, обновление врагов, спавн волн) останавливается,
+  доигрывается короткая анимация/пауза смерти (player.death_animation_finished),
+  после чего показывается DeathScreen с вариантами «Начать заново» /
+  «Главное меню» / «Выход». Пауза (ESC) во время гибели недоступна —
+  нечего ставить на паузу, когда персонаж уже умер.
 """
 
 import pygame
@@ -26,6 +34,7 @@ from core.player import Player, HITBOX_OFFSET_Y
 from core.hud import HUD
 from core.menu import MainMenu, SettingsScreen
 from core.pause_menu import PauseMenu
+from core.death_screen import DeathScreen
 from core.inventory_ui import InventoryPanel
 from core.intro_screen import IntroScreen
 from core.audio import AudioManager
@@ -211,6 +220,7 @@ def run_game(save_path=None):
     hud = HUD(WIDTH, HEIGHT)
     inv_panel = InventoryPanel(WIDTH, HEIGHT)
     pause_menu = PauseMenu(screen)
+    death_screen = DeathScreen(screen)
     audio = AudioManager()
 
     # Настройки (громкость и т.д.) нужны и в игре — пауза может открыть
@@ -248,7 +258,12 @@ def run_game(save_path=None):
     # Состояние игры
     paused = False
     pause_view = "menu"  # "menu" | "settings" — что показывать внутри паузы
-    last_frame = pygame.Surface((WIDTH, HEIGHT))  # снимок последнего кадра для паузы
+    last_frame = pygame.Surface((WIDTH, HEIGHT))  # снимок последнего кадра для паузы/смерти
+
+    # Состояние гибели персонажа: пока death_screen_active=False, экран
+    # смерти не рисуется, даже если player.is_dead уже True — даём
+    # доиграть короткую анимацию/паузу смерти (death_animation_finished).
+    death_screen_active = False
 
     session_start_ms = pygame.time.get_ticks()
 
@@ -269,6 +284,19 @@ def run_game(save_path=None):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "quit"
+
+            # Экран гибели — обрабатывается первым и блокирует всё остальное
+            # (паузу открыть нельзя, инвентарь/отладочные клавиши не действуют).
+            if death_screen_active:
+                death_screen.update(mouse_pos)
+                result = death_screen.handle_event(event)
+                if result == "restart":
+                    return "restart"
+                elif result == "menu":
+                    return "menu"
+                elif result == "quit":
+                    return "quit"
+                continue
 
             if paused:
                 if pause_view == "settings":
@@ -305,6 +333,8 @@ def run_game(save_path=None):
                 continue  # пока пауза — игнорируем остальные события
 
             if event.type == pygame.KEYDOWN:
+                # ESC во время гибели не открывает паузу — see death_screen_active
+                # выше, эта ветка просто не достигается, пока персонаж мёртв.
                 if event.key == pygame.K_ESCAPE:
                     paused = True
                     pause_view = "menu"
@@ -327,6 +357,13 @@ def run_game(save_path=None):
 
             hud.handle_event(event, player)
 
+        # ── если активен экран гибели — рисуем его и переходим к следующему кадру ─
+        if death_screen_active:
+            death_screen.update(mouse_pos)
+            death_screen.draw(last_frame, player)
+            pygame.display.flip()
+            continue
+
         # ── если пауза — рисуем оверлей/настройки и переходим к следующему кадру ─
         if paused:
             if pause_view == "settings":
@@ -340,41 +377,61 @@ def run_game(save_path=None):
 
         hud.update(mouse_pos)
 
-        # ── обновление волн ───────────────────────────────────────────────────
-        wave_mgr.update(dt)
+        # ── обновление волн (останавливается, как только игрок погиб —
+        #    не имеет смысла спавнить новые волны на труп персонажа) ──────────
+        if not player.is_dead:
+            wave_mgr.update(dt)
 
         # ── обновление игрока ─────────────────────────────────────────────────
+        # update_player сама проверяет player.is_dead внутри и, если игрок
+        # мёртв, не двигает его и не реагирует на ввод — только продолжает
+        # отсчитывать death_timer для death_animation_finished (см. core/player.py).
         keys = pygame.key.get_pressed()
         player.update_player(keys, dt)
 
-        wall_map.resolve_player(player.hitbox)
-        player.world_x = float(player.hitbox.centerx)
-        player.world_y = float(player.hitbox.centery) - HITBOX_OFFSET_Y
-        player.rect.center = (int(player.world_x), int(player.world_y))
+        if not player.is_dead:
+            wall_map.resolve_player(player.hitbox)
+            player.world_x = float(player.hitbox.centerx)
+            player.world_y = float(player.hitbox.centery) - HITBOX_OFFSET_Y
+            player.rect.center = (int(player.world_x), int(player.world_y))
 
-        hit_any = player.try_deal_attack(all_enemies)
-        if hit_any:
-            audio.play_sfx("hit")
+            hit_any = player.try_deal_attack(all_enemies)
+            if hit_any:
+                audio.play_sfx("hit")
 
-        # ── обновление слаймов ────────────────────────────────────────────────
-        prev_slime_count = slimes.count
-        slimes.update(player, dt)
-        if slimes.count < prev_slime_count:
-            audio.play_sfx("enemy_hurt")
-        for slime in slimes.enemies:
-            wall_map.resolve_entity(slime.rect)
-            slime.x = float(slime.rect.centerx)
-            slime.y = float(slime.rect.centery)
+            # ── обновление слаймов ────────────────────────────────────────────
+            prev_slime_count = slimes.count
+            slimes.update(player, dt)
+            if slimes.count < prev_slime_count:
+                audio.play_sfx("enemy_hurt")
+            for slime in slimes.enemies:
+                wall_map.resolve_entity(slime.rect)
+                slime.x = float(slime.rect.centerx)
+                slime.y = float(slime.rect.centery)
 
-        # ── обновление дальних врагов и снарядов ─────────────────────────────
-        prev_ranged_count = ranged.count
-        ranged.update(player, dt, wall_map)
-        if ranged.count < prev_ranged_count:
-            audio.play_sfx("enemy_hurt")
-        for enemy in ranged.enemies:
-            wall_map.resolve_entity(enemy.rect)
-            enemy.x = float(enemy.rect.centerx)
-            enemy.y = float(enemy.rect.centery)
+            # ── обновление дальних врагов и снарядов ───────────────────────────
+            prev_ranged_count = ranged.count
+            ranged.update(player, dt, wall_map)
+            if ranged.count < prev_ranged_count:
+                audio.play_sfx("enemy_hurt")
+            for enemy in ranged.enemies:
+                wall_map.resolve_entity(enemy.rect)
+                enemy.x = float(enemy.rect.centerx)
+                enemy.y = float(enemy.rect.centery)
+        else:
+            # Игрок мёртв: враги и снаряды "замораживаются" — буквально не
+            # обновляются вообще, чтобы сцена позади экрана смерти не жила
+            # своей жизнью (не наносила фантомный урон, не двигалась дальше).
+            pass
+
+        # Если игрок мёртв, фиксируем момент, когда можно переключиться на
+        # экран Game Over — но делаем это ПОСЛЕ полной отрисовки текущего
+        # кадра ниже (last_frame должен содержать уже нарисованную сцену
+        # с погибшим персонажем, а не кадр из прошлой итерации).
+        ready_for_death_screen = (
+            player.is_dead and not death_screen_active
+            and player.death_animation_finished
+        )
 
         # ── камера ────────────────────────────────────────────────────────────
         camera_x = max(0, min(player.hitbox.centerx - WIDTH // 2, map_w_px - WIDTH))
@@ -425,9 +482,10 @@ def run_game(save_path=None):
             True, (200, 170, 80))
         screen.blit(wave_surf, (10, HEIGHT - 140))
 
-        # Подсказка про сохранение
-        save_hint = font_dbg.render("ESC — пауза и сохранение", True, (140, 135, 120))
-        screen.blit(save_hint, (10, HEIGHT - 118))
+        # Подсказка про сохранение (скрыта, пока персонаж умирает)
+        if not player.is_dead:
+            save_hint = font_dbg.render("ESC — пауза и сохранение", True, (140, 135, 120))
+            screen.blit(save_hint, (10, HEIGHT - 118))
 
         if show_fps:
             fps_s = font_fps.render(
@@ -443,6 +501,16 @@ def run_game(save_path=None):
             screen.blit(hint, (10, 36))
 
         pygame.display.flip()
+
+        # Переключаемся на экран Game Over ровно после того, как кадр с
+        # гибелью персонажа уже полностью отрисован и показан игроку —
+        # last_frame теперь содержит именно ту сцену, которую видел игрок
+        # в момент смерти (а не кадр из предыдущей итерации цикла).
+        if ready_for_death_screen:
+            last_frame.blit(screen, (0, 0))
+            death_screen.reset_fade()
+            death_screen_active = True
+            audio.stop_music()
 
 
 # ── главный цикл ──────────────────────────────────────────────────────────────
@@ -463,6 +531,12 @@ def main():
             save = result[len("load:"):] if result.startswith("load:") else None
 
         outcome = run_game(save_path=save)
+
+        # "restart" приходит с экрана гибели — это полностью новая партия
+        # (без сохранения), тот же путь, что и обычная "Новая игра" из
+        # главного меню, но без повторного показа интро-экрана.
+        while outcome == "restart":
+            outcome = run_game(save_path=None)
 
         if outcome == "quit":
             break

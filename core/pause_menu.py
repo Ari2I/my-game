@@ -79,7 +79,7 @@ class PauseMenu:
     """
 
     PANEL_W = 340
-    PANEL_H = 380
+    PANEL_H = 400
 
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
@@ -96,7 +96,7 @@ class PauseMenu:
 
         # Центр панели
         bw, bh, gap = 260, 50, 12
-        start_y = H // 2 - 90
+        start_y = H // 2 - 115
 
         defs = [
             ("Продолжить", PANEL_BG, ACCENT, "resume"),

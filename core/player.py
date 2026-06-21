@@ -34,6 +34,13 @@ ATTACK_HIT_END = 0.70
 # Смещение начала конуса атаки от центра хитбокса вперёд, пикселей
 ATTACK_CONE_OFFSET = 20
 
+# ─── Гибель персонажа ──────────────────────────────────────────────────────────
+# Сколько секунд проигрывается анимация смерти (death) перед тем, как игра
+# считает персонажа полностью «упавшим» и можно показывать экран Game Over.
+# Если в SPRITE_SHEET_LAYOUT нет анимации "death" — используется как простая
+# пауза перед показом экрана смерти (см. main.py).
+DEATH_ANIM_DURATION = 0.9
+
 # ─── Хитбокс ──────────────────────────────────────────────────────────────────
 HITBOX_W = 52
 HITBOX_H = 28
@@ -181,6 +188,14 @@ class Player:
                      целиком, а не только узкий хитбокс у ног — иначе голова
                      персонажа «торчит» из-под объекта, который должен
                      закрывать его полностью.
+
+    Гибель персонажа:
+      Когда current_hp достигает 0, игрок переходит в состояние смерти
+      (is_dead становится True). С этого момента модель ИГНОРИРУЕТ дальнейший
+      урон, движение и атаку (см. take_damage/update_player) — единственное,
+      что продолжает работать, это animate() для проигрывания анимации
+      смерти, если она задана в SPRITE_SHEET_LAYOUT. main.py отслеживает
+      is_dead и переключает игру в состояние Game Over (см. core/death_screen.py).
     """
 
     def __init__(self, x, y):
@@ -196,6 +211,12 @@ class Player:
                     y_off, fw, fh, count, scale = anim_data[direction]
                     self.animations[anim_name][direction] = self._load(
                         y_off, fw, fh, count, scale)
+
+        # Есть ли в спрайтшите выделенная анимация смерти. Если её нет —
+        # вместо неё при смерти используется текущий кадр idle/последняя
+        # анимация (просто персонаж "замирает"), а длительность экрана
+        # Game Over определяется DEATH_ANIM_DURATION как простая пауза.
+        self._has_death_animation = "death" in self.animations
 
         self.state = "idle"
         self.facing = "down"
@@ -224,6 +245,10 @@ class Player:
         self._attack_cd: float = 0.0
         self._iframe_cd: float = 0.0
         self._hit_dealt: bool = False
+
+        # ── Состояние смерти ──────────────────────────────────────────────────
+        self._is_dead: bool = False
+        self._death_timer: float = 0.0
 
     # ── синхронизация rect и hitbox из world_x/y ─────────────────────────────
     def _sync_rects(self):
@@ -268,6 +293,62 @@ class Player:
     @current_hp.setter
     def current_hp(self, value: float):
         self._current_hp = max(0.0, min(float(value), float(self.stats.max_hp())))
+        # Единственная точка входа в состояние смерти: как только HP
+        # опускается до нуля — фиксируем смерть. Однократно (if not
+        # self._is_dead), чтобы повторные обнуления HP (например, если
+        # урон продолжает прилетать на уже мёртвого персонажа в этом же
+        # кадре) не перезапускали анимацию/таймер смерти заново.
+        if self._current_hp <= 0 and not self._is_dead:
+            self._enter_death()
+
+    # ── гибель персонажа ──────────────────────────────────────────────────────
+    def _enter_death(self):
+        """Переводит игрока в состояние смерти. Вызывается один раз."""
+        self._is_dead = True
+        self._death_timer = 0.0
+        self._current_hp = 0.0
+        self.is_attacking = False
+        self._hit_dealt = False
+        if self._has_death_animation:
+            self.state = "death"
+            self.frame_index = 0.0
+        # Если анимации смерти нет — персонаж остаётся на текущем кадре
+        # (обычно последний кадр атаки/ходьбы перед гибелью), просто
+        # перестаёт двигаться и реагировать (см. update_player/take_damage).
+
+    @property
+    def is_dead(self) -> bool:
+        """True, если HP достигло 0 и персонаж погиб."""
+        return self._is_dead
+
+    @property
+    def death_animation_finished(self) -> bool:
+        """
+        True, когда можно показывать экран Game Over — то есть либо
+        проигралась анимация смерти полностью (если она есть), либо
+        прошла фиксированная пауза DEATH_ANIM_DURATION (если анимации
+        смерти в спрайтшите нет).
+        """
+        if not self._is_dead:
+            return False
+        return self._death_timer >= DEATH_ANIM_DURATION
+
+    def revive(self, hp_fraction: float = 1.0):
+        """
+        Возвращает игрока к жизни (используется при выборе «Заново»
+        на экране смерти, перед стартом новой игровой сессии).
+
+        hp_fraction — доля от max_hp, с которой персонаж возрождается
+        (по умолчанию полное HP).
+        """
+        self._is_dead = False
+        self._death_timer = 0.0
+        self.state = "idle"
+        self.frame_index = 0.0
+        self.is_attacking = False
+        self._hit_dealt = False
+        self._iframe_cd = 0.0
+        self._current_hp = max(1.0, float(self.stats.max_hp()) * hp_fraction)
 
     # ── опыт ─────────────────────────────────────────────────────────────────
     def gain_xp(self, amount: int):
@@ -285,10 +366,13 @@ class Player:
 
     # ── получение урона с i-frames ────────────────────────────────────────────
     def take_damage(self, amount: float):
+        if self._is_dead:
+            return
         if self._iframe_cd > 0:
             return
         self.current_hp -= amount
-        self._iframe_cd = IFRAME_DURATION
+        if not self._is_dead:
+            self._iframe_cd = IFRAME_DURATION
 
     @property
     def is_invincible(self) -> bool:
@@ -323,6 +407,8 @@ class Player:
         Проверяет конус атаки и наносит урон врагам.
         Принимает любой EnemyManager (или совместимый объект).
         """
+        if self._is_dead:
+            return False
         if not self.is_attacking:
             return False
         if self._attack_cd > 0:
@@ -351,6 +437,15 @@ class Player:
     # ── обновление ───────────────────────────────────────────────────────────
     def update_player(self, keys, dt: float = 1.0):
         dt_sec = dt / 60.0
+
+        # Мёртвый персонаж не двигается и не реагирует на ввод — только
+        # доигрывает анимацию смерти (или стоит на последнем кадре, если
+        # отдельной анимации смерти нет) и считает таймер для main.py,
+        # который решает, когда показывать экран Game Over.
+        if self._is_dead:
+            self._death_timer += dt_sec
+            self.animate(dt)
+            return
 
         if self._attack_cd > 0: self._attack_cd = max(0.0, self._attack_cd - dt_sec)
         if self._iframe_cd > 0: self._iframe_cd = max(0.0, self._iframe_cd - dt_sec)
@@ -395,16 +490,28 @@ class Player:
         self.animate(dt)
 
     def animate(self, dt: float = 1.0):
-        anim = self.animations[self.state]
-        frames = anim[self.facing]
+        anim = self.animations.get(self.state)
+        if anim is None:
+            # Состояние "death" без отдельной анимации в спрайтшите —
+            # держим персонажа на текущем self.image, ничего не пересчитываем.
+            return
+
+        frames = anim.get(self.facing)
+        if frames is None:
+            return
+
         self.frame_index += anim["speed"] * dt
 
         if self.frame_index >= len(frames):
-            self.frame_index = 0.0
-            if self.is_attacking:
-                self.is_attacking = False
-                self._hit_dealt = False
-                self.state = "idle"
+            if self._is_dead:
+                # Анимация смерти не зацикливается — остаёмся на последнем кадре.
+                self.frame_index = len(frames) - 1
+            else:
+                self.frame_index = 0.0
+                if self.is_attacking:
+                    self.is_attacking = False
+                    self._hit_dealt = False
+                    self.state = "idle"
 
         self.image = frames[int(self.frame_index)]
         self.rect = self.image.get_rect(center=(int(self.world_x), int(self.world_y)))
@@ -431,4 +538,7 @@ class Player:
         self.xp = d.get("xp", 0)
         self.stats.from_dict(d.get("stats", {}))
         self.inventory.from_dict(d.get("inventory", {}))
-        self._current_hp = d.get("current_hp", float(self.stats.max_hp()))
+        self._is_dead = False
+        self._death_timer = 0.0
+        loaded_hp = d.get("current_hp", float(self.stats.max_hp()))
+        self._current_hp = max(1.0, min(float(loaded_hp), float(self.stats.max_hp())))
