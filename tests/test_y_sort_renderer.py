@@ -11,9 +11,24 @@ Y-координаты нижней точки сущности: объект с
 
 Точка сортировки игрока — body_rect.bottom (нижняя точка ПОЛНОГО визуального
 силуэта спрайта), а не hitbox.bottom (узкий хитбокс у ног, нужен только для
-коллизий со стенами). См. докстринг core/render/y_sort_renderer.py и
+коллизий со стенами карты). См. докстринг core/render/y_sort_renderer.py и
 core/player.py — почему это разделение важно для корректного перекрытия
 объектами карты.
+
+ВАЖНО про контракт game_map.iter_object_sprites():
+    Реальный core/map.py (и main.py::CachedTileMap) отдают список ГРУПП:
+        [(y_sort_key, [(tile_image, world_x, world_y), ...]), ...]
+    то есть каждый элемент — кортеж из ДВУХ значений: y_sort_key и список
+    тайлов этой связной группы (см. core/map.py:_build_object_groups —
+    группировка через BFS по 4-связности, чтобы крупные многотайловые
+    объекты не «разваливались» при сортировке). make_game_map() ниже
+    собирает мок именно в этом формате — каждая переданная «плоская»
+    запись (y_sort_key, surf, x, y) оборачивается в группу из ОДНОГО
+    тайла: (y_sort_key, [(surf, x, y)]). Для целей этих тестов (порядок
+    сортировки одиночных объектов) одно-тайловая группа эквивалентна
+    отдельному объекту, но соответствует реальному контракту, который
+    использует YSortRenderer.draw() (см. core/render/y_sort_renderer.py:
+    `for y_sort_key, tile_group in game_map.iter_object_sprites()`).
 """
 
 import sys
@@ -91,9 +106,29 @@ def make_player(bottom_y: float, body_bottom_y: float | None = None):
 
 
 def make_game_map(object_sprites: list):
-    """Mock карты, отдающей заданный список (y_sort_key, surf, x, y)."""
+    """
+    Mock карты, отдающей список «плоских» записей (y_sort_key, surf, x, y) —
+    каждая запись описывает ОДИН тайл-объект.
+
+    Реальный контракт core/map.py::iter_object_sprites() — список ГРУПП
+    тайлов: [(y_sort_key, [(surf, x, y), ...]), ...] (см. докстринг модуля
+    выше). Чтобы тесты могли оперировать простыми одиночными объектами, не
+    теряя соответствия реальному контракту, каждая «плоская» запись здесь
+    оборачивается в группу из одного элемента:
+
+        (y_sort_key, surf, x, y)  ->  (y_sort_key, [(surf, x, y)])
+
+    Так YSortRenderer.draw(), которая распаковывает
+    `for y_sort_key, tile_group in game_map.iter_object_sprites()`,
+    получает данные ровно в том формате, в котором их реально отдаёт
+    CachedTileMap/TileMap в проде.
+    """
+    grouped = [
+        (y_sort_key, [(surf, x, y)])
+        for (y_sort_key, surf, x, y) in object_sprites
+    ]
     gm = mock.MagicMock()
-    gm.iter_object_sprites.return_value = object_sprites
+    gm.iter_object_sprites.return_value = grouped
     return gm
 
 
@@ -289,4 +324,4 @@ class TestYSortOrdering:
         y_sort.draw(SCREEN, 0, 0, game_map=game_map,
                     player=player, slimes=slimes, ranged=ranged)
 
-        assert call_order == ["player"]
+        assert call_order == ["player"]3

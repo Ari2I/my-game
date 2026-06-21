@@ -31,11 +31,11 @@ SFX_FILES: dict[str, str] = {
 }
 
 # Файл фоновой музыки
-MUSIC_FILE = os.path.join(SOUNDS_DIR, "music_game.ogg")
+MUSIC_FILE = os.path.join(SOUNDS_DIR, "music_game.wav")
 
 # Громкость по умолчанию
-DEFAULT_SFX_VOLUME = 0.7
-DEFAULT_MUSIC_VOLUME = 0.4
+DEFAULT_SFX_VOLUME = 0.01
+DEFAULT_MUSIC_VOLUME = 0.01
 
 
 class AudioManager:
