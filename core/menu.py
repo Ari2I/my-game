@@ -3,6 +3,8 @@ import json
 import os
 import sys
 
+from core.save_system import list_saves, delete_save
+
 # ─── Цветовая палитра ──────────────────────────────────────────────────────────
 DARK_BG = (15, 17, 26)  # почти чёрный, чуть синеватый
 PANEL_BG = (24, 28, 44)  # тёмно-синяя панель
@@ -112,12 +114,11 @@ class Slider:
 # ─── Экран настроек ───────────────────────────────────────────────────────────
 class SettingsScreen:
     RESOLUTIONS = [(1280, 720), (1600, 900), (1920, 1080), (2560, 1440)]
-    LANGUAGES = ["Русский", "English", "Polski", "Deutsch"]
 
     def __init__(self, screen, fonts, settings):
         self.screen = screen
         self.fonts = fonts
-        self.settings = settings  # словарь: music, sfx, resolution_idx, language_idx
+        self.settings = settings  # словарь: music, sfx, resolution_idx
 
         W, H = screen.get_size()
         cx = W // 2
@@ -132,11 +133,9 @@ class SettingsScreen:
 
         # кнопки разрешения
         self.res_idx = settings.get("resolution_idx", 2)
-        self.lang_idx = settings.get("language_idx", 0)
 
         bw, bh = 140, 36
         self._make_res_buttons(cx, H // 2 + 60, bw, bh)
-        self._make_lang_buttons(cx, H // 2 + 130, bw, bh)
 
         # назад
         self.btn_back = Button((cx - 80, H - 80, 160, 44),
@@ -155,19 +154,6 @@ class SettingsScreen:
                        PANEL_BG, ACCENT, self.fonts["small"])
             )
 
-    def _make_lang_buttons(self, cx, y, bw, bh):
-        n = len(self.LANGUAGES)
-        gap = 10
-        total = n * bw + (n - 1) * gap
-        start = cx - total // 2
-        self.lang_buttons = []
-        for i, lang in enumerate(self.LANGUAGES):
-            x = start + i * (bw + gap)
-            self.lang_buttons.append(
-                Button((x, y, bw, bh), lang,
-                       PANEL_BG, ACCENT, self.fonts["small"])
-            )
-
     def handle_event(self, event):
         self.slider_music.handle_event(event)
         self.slider_sfx.handle_event(event)
@@ -177,24 +163,17 @@ class SettingsScreen:
             self.settings["music"] = self.slider_music.value
             self.settings["sfx"] = self.slider_sfx.value
             self.settings["resolution_idx"] = self.res_idx
-            self.settings["language_idx"] = self.lang_idx
             return "back"
 
         for i, btn in enumerate(self.res_buttons):
             if btn.is_clicked(event):
                 self.res_idx = i
 
-        for i, btn in enumerate(self.lang_buttons):
-            if btn.is_clicked(event):
-                self.lang_idx = i
-
         return None
 
     def update(self, mouse_pos):
         self.btn_back.update(mouse_pos)
         for btn in self.res_buttons:
-            btn.update(mouse_pos)
-        for btn in self.lang_buttons:
             btn.update(mouse_pos)
 
     def draw(self):
@@ -222,68 +201,58 @@ class SettingsScreen:
             else:
                 btn.draw(self.screen)
 
-        # секция языка
-        lbl_lang = self.fonts["body"].render("Язык / Language", True, TEXT_MAIN)
-        self.screen.blit(lbl_lang, lbl_lang.get_rect(centerx=W // 2, y=self.lang_buttons[0].rect.y - 28))
-        for i, btn in enumerate(self.lang_buttons):
-            if i == self.lang_idx:
-                pygame.draw.rect(self.screen, ACCENT, btn.rect, border_radius=6)
-                txt = self.fonts["small"].render(btn.label, True, DARK_BG)
-                self.screen.blit(txt, txt.get_rect(center=btn.rect.center))
-            else:
-                btn.draw(self.screen)
-
         self.btn_back.draw(self.screen)
 
 
 # ─── Экран загрузки сохранений ────────────────────────────────────────────────
 class LoadScreen:
-    SAVES_DIR = "saves"
+    """
+    Показывает список реальных сохранений (через core.save_system.list_saves).
+    Поддерживает выбор слота, загрузку и удаление выбранного сохранения.
+    """
 
     def __init__(self, screen, fonts):
         self.screen = screen
         self.fonts = fonts
-        self.saves = self._scan_saves()
+        self.saves = list_saves()
         self.selected = None
 
         W, H = screen.get_size()
         cx = W // 2
 
-        # список слотов (до 5 штук)
         self.slot_rects = []
         slot_w, slot_h, gap = 500, 60, 12
-        start_y = H // 2 - (len(self.saves) * (slot_h + gap)) // 2
+        count = max(1, len(self.saves))
+        start_y = H // 2 - (count * (slot_h + gap)) // 2
         for i in range(len(self.saves)):
             rx = cx - slot_w // 2
             ry = start_y + i * (slot_h + gap)
             self.slot_rects.append(pygame.Rect(rx, ry, slot_w, slot_h))
 
         # кнопки
-        self.btn_load = Button((cx - 170, H - 90, 150, 44),
+        self.btn_load = Button((cx - 260, H - 90, 150, 44),
                                "Загрузить", PANEL_BG, ACCENT, fonts["body"])
-        self.btn_back = Button((cx + 20, H - 90, 150, 44),
+        self.btn_delete = Button((cx - 90, H - 90, 150, 44),
+                                 "Удалить", PANEL_BG, RED_EXIT_HOV, fonts["body"],
+                                 text_color=(230, 190, 190))
+        self.btn_back = Button((cx + 90, H - 90, 150, 44),
                                "← Назад", PANEL_BG, BORDER, fonts["body"])
 
-    def _scan_saves(self):
-        saves = []
-        if not os.path.isdir(self.SAVES_DIR):
-            return saves
-        for fname in sorted(os.listdir(self.SAVES_DIR)):
-            if fname.endswith(".json"):
-                path = os.path.join(self.SAVES_DIR, fname)
-                try:
-                    with open(path) as f:
-                        data = json.load(f)
-                    saves.append({
-                        "file": path,
-                        "name": data.get("name", fname),
-                        "level": data.get("level", "—"),
-                        "time": data.get("playtime", "—"),
-                    })
-                except Exception:
-                    saves.append({"file": path, "name": fname,
-                                  "level": "—", "time": "—"})
-        return saves
+    def _refresh(self):
+        """Перестраивает список после удаления сохранения."""
+        self.saves = list_saves()
+        self.selected = None
+
+        W, H = self.screen.get_size()
+        cx = W // 2
+        self.slot_rects = []
+        slot_w, slot_h, gap = 500, 60, 12
+        count = max(1, len(self.saves))
+        start_y = H // 2 - (count * (slot_h + gap)) // 2
+        for i in range(len(self.saves)):
+            rx = cx - slot_w // 2
+            ry = start_y + i * (slot_h + gap)
+            self.slot_rects.append(pygame.Rect(rx, ry, slot_w, slot_h))
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -297,12 +266,18 @@ class LoadScreen:
         if self.btn_load.is_clicked(event):
             if self.selected is not None and self.saves:
                 return ("load", self.saves[self.selected]["file"])
-            # если сохранений нет — игнорируем
+
+        if self.btn_delete.is_clicked(event):
+            if self.selected is not None and self.saves:
+                delete_save(self.saves[self.selected]["file"])
+                self._refresh()
+
         return None
 
     def update(self, mouse_pos):
         self.btn_back.update(mouse_pos)
         self.btn_load.update(mouse_pos)
+        self.btn_delete.update(mouse_pos)
 
     def draw(self):
         W, H = self.screen.get_size()
@@ -332,6 +307,7 @@ class LoadScreen:
                 self.screen.blit(info_s, (r.x + 16, r.y + 34))
 
         self.btn_load.draw(self.screen)
+        self.btn_delete.draw(self.screen)
         self.btn_back.draw(self.screen)
 
 
@@ -346,8 +322,7 @@ class MainMenu:
     def __init__(self, screen):
         self.screen = screen
         self.clock = pygame.time.Clock()
-        self.settings = {"music": 0.7, "sfx": 0.8,
-                         "resolution_idx": 2, "language_idx": 0}
+        self.settings = {"music": 0.7, "sfx": 0.8, "resolution_idx": 2}
         self._load_settings()
 
         self.fonts = self._build_fonts()

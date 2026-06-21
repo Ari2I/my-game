@@ -2,11 +2,11 @@
 core/pause_menu.py — экран паузы.
 
 Переиспользует Button и цветовую палитру из core/menu.py.
-Опции: "Продолжить", "Настройки", "Главное меню", "Выход".
+Опции: "Продолжить", "Сохранить", "Настройки", "Главное меню", "Выход".
 
 Использование в main.py:
-    pause = PauseMenu(screen, fonts)
-    result = pause.handle_event(event)   # "resume" | "menu" | "quit" | None
+    pause = PauseMenu(screen)
+    result = pause.handle_event(event)   # "resume" | "save" | "menu" | "quit" | None
     pause.draw(last_frame_surface)
 """
 
@@ -22,9 +22,14 @@ TEXT_DIM = (110, 100, 85)
 BORDER = (60, 55, 40)
 RED_EXIT = (160, 50, 50)
 RED_EXIT_HOV = (200, 70, 70)
+GREEN_OK = (60, 140, 70)
+GREEN_OK_HOV = (80, 175, 90)
 
 # Полупрозрачный оверлей поверх игры
 OVERLAY_COLOR = (0, 0, 0, 160)
+
+# Сколько секунд держать надпись "Сохранено!" после успешного сохранения
+SAVE_FLASH_DURATION_MS = 1500
 
 
 class _Button:
@@ -65,13 +70,16 @@ class PauseMenu:
 
     Возвращаемые значения handle_event:
       "resume"  — продолжить игру
+      "save"    — сохранить текущий прогресс (main.py выполняет реальное
+                  сохранение через core.save_system и вызывает
+                  notify_saved() для визуального подтверждения)
       "menu"    — вернуться в главное меню
       "quit"    — выход из приложения
       None      — событие не обработано
     """
 
     PANEL_W = 340
-    PANEL_H = 320
+    PANEL_H = 380
 
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
@@ -80,16 +88,19 @@ class PauseMenu:
 
         font_title = pygame.font.SysFont(None, 46)
         font_body = pygame.font.SysFont(None, 30)
+        font_small = pygame.font.SysFont(None, 22)
 
         self._font_title = font_title
         self._font_body = font_body
+        self._font_small = font_small
 
         # Центр панели
         bw, bh, gap = 260, 50, 12
-        start_y = H // 2 - 60
+        start_y = H // 2 - 90
 
         defs = [
             ("Продолжить", PANEL_BG, ACCENT, "resume"),
+            ("Сохранить игру", PANEL_BG, GREEN_OK_HOV, "save"),
             ("Настройки", PANEL_BG, ACCENT, "settings"),
             ("Главное меню", PANEL_BG, ACCENT, "menu"),
             ("Выход", PANEL_BG, RED_EXIT, "quit"),
@@ -116,6 +127,14 @@ class PauseMenu:
 
         # Состояние вложенных настроек (заглушка — открывает SettingsScreen)
         self._show_settings = False
+
+        # Таймер показа надписи "Сохранено!" после успешного сохранения
+        self._save_flash_until_ms: int = 0
+
+    def notify_saved(self):
+        """Вызывается из main.py сразу после успешного сохранения —
+        включает кратковременную надпись-подтверждение "Сохранено!"."""
+        self._save_flash_until_ms = pygame.time.get_ticks() + SAVE_FLASH_DURATION_MS
 
     def handle_event(self, event, player=None) -> str | None:
         """
@@ -164,3 +183,9 @@ class PauseMenu:
         # Кнопки
         for btn, _ in self._buttons:
             btn.draw(self.screen)
+
+        # Надпись "Сохранено!" — на короткое время после успешного сохранения
+        if pygame.time.get_ticks() < self._save_flash_until_ms:
+            ok_s = self._font_small.render("✓ Сохранено", True, GREEN_OK_HOV)
+            self.screen.blit(ok_s, ok_s.get_rect(
+                centerx=W // 2, y=self._panel_rect.bottom - 26))

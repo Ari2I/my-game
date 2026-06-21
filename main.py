@@ -24,7 +24,7 @@ if BASE_DIR not in sys.path:
 from core.map import TileMap
 from core.player import Player, HITBOX_OFFSET_Y
 from core.hud import HUD
-from core.menu import MainMenu
+from core.menu import MainMenu, SettingsScreen
 from core.pause_menu import PauseMenu
 from core.inventory_ui import InventoryPanel
 from core.intro_screen import IntroScreen
@@ -33,6 +33,7 @@ from core.slime import SlimeManager
 from core.ranged_enemy import RangedEnemyManager
 from core.wave_manager import WaveManager
 from core.walls import WallMap
+from core.save_system import save_game, load_player_dict
 
 from core.render.player_renderer import PlayerRenderer
 from core.render.slime_renderer import SlimeManagerRenderer
@@ -193,11 +194,17 @@ def run_game(save_path=None):
 
     player = Player(map_w_px // 3, map_h_px // 3)
 
+    # current_save_path — куда пойдёт следующее сохранение этой партии.
+    # При загрузке существующего сохранения мы продолжаем писать в ТОТ ЖЕ
+    # файл (а не плодим новый слот при каждом нажатии "Сохранить").
+    # При новой игре остаётся None до первого сохранения — тогда
+    # save_game() сам найдёт свободный слот (save_1.json, save_2.json, ...).
+    current_save_path = None
+
     if save_path:
-        import json
         try:
-            with open(save_path) as f:
-                player.from_dict(json.load(f))
+            player.from_dict(load_player_dict(save_path))
+            current_save_path = save_path
         except Exception as e:
             print(f"[game] Ошибка загрузки: {e}")
 
@@ -205,6 +212,19 @@ def run_game(save_path=None):
     inv_panel = InventoryPanel(WIDTH, HEIGHT)
     pause_menu = PauseMenu(screen)
     audio = AudioManager()
+
+    # Настройки (громкость и т.д.) нужны и в игре — пауза может открыть
+    # тот же SettingsScreen, что и главное меню.
+    menu_settings = {"music": 0.7, "sfx": 0.8, "resolution_idx": 2}
+    settings_path = "saves/settings.json"
+    if os.path.isfile(settings_path):
+        try:
+            import json
+            with open(settings_path) as f:
+                menu_settings.update(json.load(f))
+        except Exception:
+            pass
+    settings_screen = None  # создаётся лениво, когда игрок открывает настройки из паузы
 
     slimes = SlimeManager(map_w_px, map_h_px)
     ranged = RangedEnemyManager(map_w_px, map_h_px)
@@ -219,13 +239,26 @@ def run_game(save_path=None):
     # Запускаем фоновую музыку (если файл есть)
     audio.play_music()
 
-    # Debug стартовые данные
-    player.inventory.slime_goo = 5
-    player.gain_xp(80)
+    # Debug стартовые данные — только для НОВОЙ игры, загруженное
+    # сохранение не должно перезаписываться этими значениями.
+    if save_path is None:
+        player.inventory.slime_goo = 5
+        player.gain_xp(80)
 
     # Состояние игры
     paused = False
+    pause_view = "menu"  # "menu" | "settings" — что показывать внутри паузы
     last_frame = pygame.Surface((WIDTH, HEIGHT))  # снимок последнего кадра для паузы
+
+    session_start_ms = pygame.time.get_ticks()
+
+    def do_save():
+        """Сохраняет текущую партию, обновляет current_save_path и подтверждает в UI."""
+        nonlocal current_save_path
+        playtime = (pygame.time.get_ticks() - session_start_ms) / 1000.0
+        current_save_path = save_game(player, playtime_seconds=playtime,
+                                       slot_path=current_save_path)
+        pause_menu.notify_saved()
 
     while True:
         raw_ms = clock.tick(TARGET_FPS)
@@ -238,10 +271,33 @@ def run_game(save_path=None):
                 return "quit"
 
             if paused:
+                if pause_view == "settings":
+                    result = settings_screen.handle_event(event)
+                    if result == "back":
+                        os.makedirs("saves", exist_ok=True)
+                        import json
+                        with open(settings_path, "w") as f:
+                            json.dump(menu_settings, f, indent=2, ensure_ascii=False)
+                        audio.set_music_volume(menu_settings.get("music", 0.7))
+                        audio.set_sfx_volume(menu_settings.get("sfx", 0.8))
+                        pause_view = "menu"
+                        settings_screen = None
+                    continue
+
                 pause_menu.update(mouse_pos)
                 result = pause_menu.handle_event(event)
                 if result == "resume":
                     paused = False
+                elif result == "save":
+                    do_save()
+                elif result == "settings":
+                    pause_view = "settings"
+                    settings_screen = SettingsScreen(
+                        screen, {
+                            "title": pygame.font.SysFont(None, 52, bold=True),
+                            "body": pygame.font.SysFont(None, 28),
+                            "small": pygame.font.SysFont(None, 22),
+                        }, menu_settings)
                 elif result == "menu":
                     return "menu"
                 elif result == "quit":
@@ -251,6 +307,7 @@ def run_game(save_path=None):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     paused = True
+                    pause_view = "menu"
                     last_frame.blit(screen, (0, 0))  # снимок кадра для фона паузы
 
                 if event.key == pygame.K_TAB:
@@ -270,10 +327,14 @@ def run_game(save_path=None):
 
             hud.handle_event(event, player)
 
-        # ── если пауза — рисуем оверлей и переходим к следующему кадру ───────
+        # ── если пауза — рисуем оверлей/настройки и переходим к следующему кадру ─
         if paused:
-            pause_menu.update(mouse_pos)
-            pause_menu.draw(last_frame)
+            if pause_view == "settings":
+                settings_screen.update(mouse_pos)
+                settings_screen.draw()
+            else:
+                pause_menu.update(mouse_pos)
+                pause_menu.draw(last_frame)
             pygame.display.flip()
             continue
 
@@ -363,6 +424,10 @@ def run_game(save_path=None):
              if wave_mgr.is_between_waves else ""),
             True, (200, 170, 80))
         screen.blit(wave_surf, (10, HEIGHT - 140))
+
+        # Подсказка про сохранение
+        save_hint = font_dbg.render("ESC — пауза и сохранение", True, (140, 135, 120))
+        screen.blit(save_hint, (10, HEIGHT - 118))
 
         if show_fps:
             fps_s = font_fps.render(
